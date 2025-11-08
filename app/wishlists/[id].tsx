@@ -31,6 +31,7 @@ import {
   reorderWishlistItems,
   subscribeToWishlist,
   unmarkItemAsPurchased,
+  updateWishlistItem,
   Wishlist,
   WishlistItem,
 } from '../../lib/firestore/wishlists';
@@ -48,6 +49,8 @@ export default function WishlistDetailScreen() {
   const [itemLink, setItemLink] = useState('');
   const [itemPrice, setItemPrice] = useState('');
   const [userDataMap, setUserDataMap] = useState<Map<string, UserData>>(new Map());
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemName, setEditingItemName] = useState('');
 
   const loadUserData = useCallback(async (userIds: string[]) => {
     // Get current map to check what we already have
@@ -257,6 +260,48 @@ export default function WishlistDetailScreen() {
     }
   };
 
+  const handleStartEditItem = (item: WishlistItem) => {
+    if (!canEdit) return;
+    setEditingItemId(item.id);
+    setEditingItemName(item.name);
+  };
+
+  const handleSaveEditItem = async () => {
+    if (!id || !editingItemId || !editingItemName.trim()) return;
+
+    try {
+      await updateWishlistItem(id, editingItemId, {
+        name: editingItemName.trim(),
+      });
+      setEditingItemId(null);
+      setEditingItemName('');
+      // Wishlist will update automatically via real-time listener
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  const handleCancelEditItem = () => {
+    setEditingItemId(null);
+    setEditingItemName('');
+  };
+
+  const handleToggleFavorite = async (itemId: string, currentFavorite: boolean) => {
+    if (!id || !wishlist || !event || !user) return;
+    
+    const isEventMember = event.members?.includes(user.uid) || false;
+    if (!isEventMember) return;
+
+    try {
+      await updateWishlistItem(id, itemId, {
+        isFavorite: !currentFavorite,
+      });
+      // Wishlist will update automatically via real-time listener
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -278,6 +323,13 @@ export default function WishlistDetailScreen() {
   const isEventMember = event?.members?.includes(user?.uid || '') || false;
   const canEdit = isEventMember; // All event members can edit
 
+  // Sort items: favorites first, then by current order
+  const sortedItems = [...(wishlist.items || [])].sort((a, b) => {
+    const aFavorite = a.isFavorite ? 1 : 0;
+    const bFavorite = b.isFavorite ? 1 : 0;
+    return bFavorite - aFavorite; // Favorites first
+  });
+
   const renderItem = ({ item, drag, isActive }: RenderItemParams<WishlistItem>) => {
     const purchaserData = item.purchasedBy ? userDataMap.get(item.purchasedBy) : null;
     const purchaserName = purchaserData?.displayName || item.purchasedBy || 'Unknown';
@@ -292,17 +344,51 @@ export default function WishlistDetailScreen() {
         >
           {canEdit && (
             <TouchableOpacity
-              onLongPress={drag}
-              disabled={isActive}
-              style={styles.dragHandle}
-              activeOpacity={0.6}
+              onPress={() => handleToggleFavorite(item.id, item.isFavorite || false)}
+              style={styles.favoriteButton}
+              activeOpacity={0.7}
             >
-              <Ionicons name="reorder-three-outline" size={24} color="#999" />
+              <Ionicons
+                name={item.isFavorite ? "star" : "star-outline"}
+                size={24}
+                color={item.isFavorite ? "#FFD700" : "#999"}
+              />
             </TouchableOpacity>
           )}
           <View style={styles.itemContent}>
             <View style={styles.itemHeader}>
-              <Text style={styles.itemName}>{item.name}</Text>
+              {editingItemId === item.id ? (
+                <View style={styles.editNameContainer}>
+                  <TextInput
+                    style={styles.editNameInput}
+                    value={editingItemName}
+                    onChangeText={setEditingItemName}
+                    autoFocus
+                    onSubmitEditing={handleSaveEditItem}
+                    onBlur={handleSaveEditItem}
+                  />
+                  <TouchableOpacity
+                    style={styles.editNameButton}
+                    onPress={handleSaveEditItem}
+                  >
+                    <Ionicons name="checkmark" size={20} color="#4CAF50" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.editNameButton}
+                    onPress={handleCancelEditItem}
+                  >
+                    <Ionicons name="close" size={20} color="#FF3B30" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => handleStartEditItem(item)}
+                  disabled={!canEdit}
+                  style={styles.itemNameTouchable}
+                >
+                  <Text style={styles.itemName}>{item.name}</Text>
+                </TouchableOpacity>
+              )}
               {item.purchasedBy && (
                 <View style={styles.purchasedBadge}>
                   <Text style={styles.purchasedText}>
@@ -341,12 +427,14 @@ export default function WishlistDetailScreen() {
               </View>
             ) : (
               <View style={styles.itemActions}>
-                <TouchableOpacity
-                  style={styles.purchaseButton}
-                  onPress={() => handleMarkPurchased(item.id)}
-                >
-                  <Text style={styles.purchaseButtonText}>Mark as Purchased</Text>
-                </TouchableOpacity>
+                {item.isFavorite && (
+                  <TouchableOpacity
+                    style={styles.purchaseButton}
+                    onPress={() => handleMarkPurchased(item.id)}
+                  >
+                    <Text style={styles.purchaseButtonText}>Mark as Purchased</Text>
+                  </TouchableOpacity>
+                )}
                 {canEdit && (
                   <TouchableOpacity
                     style={styles.deleteItemButton}
@@ -358,6 +446,16 @@ export default function WishlistDetailScreen() {
               </View>
             )}
           </View>
+          {canEdit && (
+            <TouchableOpacity
+              onLongPress={drag}
+              disabled={isActive}
+              style={styles.dragHandle}
+              activeOpacity={0.6}
+            >
+              <Ionicons name="reorder-three-outline" size={24} color="#999" />
+            </TouchableOpacity>
+          )}
         </View>
       </ScaleDecorator>
     );
@@ -450,7 +548,7 @@ export default function WishlistDetailScreen() {
       )}
 
       <DraggableFlatList
-        data={wishlist.items || []}
+        data={sortedItems}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         onDragEnd={handleDragEnd}
@@ -596,6 +694,12 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.02 }],
   },
   dragHandle: {
+    marginLeft: 12,
+    paddingTop: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+  },
+  favoriteButton: {
     marginRight: 12,
     paddingTop: 2,
     paddingHorizontal: 4,
@@ -616,6 +720,31 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
     marginRight: 8,
+  },
+  itemNameTouchable: {
+    flex: 1,
+    marginRight: 8,
+  },
+  editNameContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  editNameInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    borderRadius: 4,
+    padding: 8,
+    backgroundColor: '#fff',
+  },
+  editNameButton: {
+    marginLeft: 8,
+    padding: 4,
   },
   purchasedBadge: {
     backgroundColor: '#4CAF50',
@@ -649,6 +778,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginTop: 8,
+    alignItems: 'center',
   },
   purchaseButton: {
     flex: 1,
@@ -684,6 +814,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 44,
     height: 44,
+    marginLeft: 'auto',
   },
   empty: {
     padding: 32,

@@ -1,17 +1,17 @@
 import {
-  collection,
-  doc,
   addDoc,
+  collection,
+  deleteDoc,
+  doc,
   getDoc,
   getDocs,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  Timestamp,
-  serverTimestamp,
   onSnapshot,
+  query,
+  serverTimestamp,
+  Timestamp,
   Unsubscribe,
+  updateDoc,
+  where,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -34,6 +34,7 @@ export interface WishlistItem {
   price?: number;
   purchasedBy?: string;
   purchasedAt?: Timestamp;
+  isFavorite?: boolean;
 }
 
 export interface Wishlist {
