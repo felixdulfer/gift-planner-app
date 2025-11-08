@@ -1,23 +1,23 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { getUserData, UserData } from '../../../lib/auth';
 import {
-  Assignment,
-  createAssignment,
-  deleteAssignment,
-  subscribeToAssignmentsForEvent,
+    Assignment,
+    createAssignment,
+    deleteAssignment,
+    subscribeToAssignmentsForEvent,
 } from '../../../lib/firestore/assignments';
 import {
-  Event,
-  subscribeToEvent,
+    Event,
+    subscribeToEvent,
 } from '../../../lib/firestore/events';
 import {
-  subscribeToWishlistsForEvent,
-  Wishlist,
+    subscribeToWishlistsForEvent,
+    Wishlist,
 } from '../../../lib/firestore/wishlists';
 
 interface AssignmentWithDetails extends Assignment {
@@ -362,11 +362,18 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+      },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+      },
+    }),
   },
   assignmentHeader: {
     flexDirection: 'row',
