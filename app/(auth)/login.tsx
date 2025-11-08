@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { refreshUserData } = useAuth();
+  const passwordInputRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -64,9 +65,13 @@ export default function LoginScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
+          returnKeyType="next"
+          onSubmitEditing={() => passwordInputRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
         <TextInput
+          ref={passwordInputRef}
           style={styles.input}
           placeholder="Password"
           value={password}
@@ -74,6 +79,8 @@ export default function LoginScreen() {
           secureTextEntry
           autoCapitalize="none"
           autoComplete="password"
+          returnKeyType="done"
+          onSubmitEditing={handleLogin}
         />
 
         <TouchableOpacity

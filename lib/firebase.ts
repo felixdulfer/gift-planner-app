@@ -3,9 +3,16 @@ import { initializeApp } from "firebase/app";
 import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 
 // Check if we should use Firebase emulators
-const USE_EMULATOR = process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR === "true";
+// Try multiple ways to access the environment variable
+// For development, default to using emulators if env var is not set
+const isDev = __DEV__ || process.env.NODE_ENV !== "production";
+const envVar = 
+  process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR || 
+  Constants.expoConfig?.extra?.useFirebaseEmulator;
+const USE_EMULATOR = envVar === "true" || envVar === true || (isDev && envVar !== "false");
 
 // Firebase configuration
 // For emulators, we can use dummy values

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { refreshUserData } = useAuth();
+  const emailInputRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<TextInput>(null);
 
   const handleRegister = async () => {
     if (!email || !password || !displayName) {
@@ -68,9 +70,13 @@ export default function RegisterScreen() {
           value={displayName}
           onChangeText={setDisplayName}
           autoCapitalize="words"
+          returnKeyType="next"
+          onSubmitEditing={() => emailInputRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
         <TextInput
+          ref={emailInputRef}
           style={styles.input}
           placeholder="Email"
           value={email}
@@ -78,9 +84,13 @@ export default function RegisterScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
+          returnKeyType="next"
+          onSubmitEditing={() => passwordInputRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
         <TextInput
+          ref={passwordInputRef}
           style={styles.input}
           placeholder="Password"
           value={password}
@@ -88,6 +98,8 @@ export default function RegisterScreen() {
           secureTextEntry
           autoCapitalize="none"
           autoComplete="password"
+          returnKeyType="done"
+          onSubmitEditing={handleRegister}
         />
 
         <TouchableOpacity
