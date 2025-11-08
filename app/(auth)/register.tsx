@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { signUp, signInWithGoogle } from '../../lib/auth';
+import { signUp, signInWithGoogle, isGoogleSignInAvailable } from '../../lib/auth';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function RegisterScreen() {
@@ -21,6 +21,7 @@ export default function RegisterScreen() {
   const { refreshUserData } = useAuth();
   const emailInputRef = useRef<TextInput>(null);
   const passwordInputRef = useRef<TextInput>(null);
+  const isGoogleAvailable = isGoogleSignInAvailable();
 
   const handleRegister = async () => {
     if (!email || !password || !displayName) {
@@ -114,13 +115,15 @@ export default function RegisterScreen() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, styles.googleButton, loading && styles.buttonDisabled]}
-          onPress={handleGoogleSignUp}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>Sign up with Google</Text>
-        </TouchableOpacity>
+        {isGoogleAvailable && (
+          <TouchableOpacity
+            style={[styles.button, styles.googleButton, loading && styles.buttonDisabled]}
+            onPress={handleGoogleSignUp}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>Sign up with Google</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           onPress={() => router.back()}

@@ -1,14 +1,38 @@
+import * as AuthSession from 'expo-auth-session';
+import Constants from 'expo-constants';
+import * as WebBrowser from 'expo-web-browser';
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithCredential,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   updateProfile,
   User,
-  GoogleAuthProvider,
-  signInWithPopup,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { Platform } from 'react-native';
 import { auth, db } from './firebase';
+
+// Complete the auth session for web browser
+WebBrowser.maybeCompleteAuthSession();
+
+// Check if Google sign-in is available
+export const isGoogleSignInAvailable = (): boolean => {
+  if (Platform.OS === 'web') {
+    // Web always supports Google sign-in via popup
+    return true;
+  }
+  
+  // For mobile, check if Client ID is configured
+  const clientIdEnv = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+  const clientIdExtra = Constants.expoConfig?.extra?.googleClientId;
+  const clientId = (typeof clientIdEnv === 'string' ? clientIdEnv : null) || 
+                   (typeof clientIdExtra === 'string' ? clientIdExtra : null);
+  
+  return !!clientId;
+};
 
 export interface UserData {
   email: string;
@@ -62,13 +86,75 @@ export const signIn = async (
   }
 };
 
-// Note: signInWithPopup is web-only. For mobile (iOS/Android), you'll need to use
-// expo-auth-session or @react-native-google-signin/google-signin
-// For now, this will only work on web. Email/password auth works on all platforms.
+// Platform-specific Google sign-in
+// Web: uses signInWithPopup
+// Mobile (iOS/Android): uses expo-auth-session with signInWithCredential
 export const signInWithGoogle = async (): Promise<User> => {
   try {
-    const provider = new GoogleAuthProvider();
-    const userCredential = await signInWithPopup(auth, provider);
+    let userCredential;
+
+    if (Platform.OS === 'web') {
+      // Web platform: use signInWithPopup
+      const provider = new GoogleAuthProvider();
+      userCredential = await signInWithPopup(auth, provider);
+    } else {
+      // Mobile platform: use expo-auth-session
+      const clientIdEnv = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+      const clientIdExtra = Constants.expoConfig?.extra?.googleClientId;
+      const clientId = (typeof clientIdEnv === 'string' ? clientIdEnv : null) || 
+                       (typeof clientIdExtra === 'string' ? clientIdExtra : null);
+      
+      if (!clientId) {
+        throw new Error('Google OAuth client ID is not configured. Please set EXPO_PUBLIC_GOOGLE_CLIENT_ID in your environment variables.');
+      }
+
+      // Create the redirect URI
+      const schemeValue = Constants.expoConfig?.scheme;
+      const scheme: string = Array.isArray(schemeValue) 
+        ? schemeValue[0] 
+        : (schemeValue || 'giftplannerapp');
+      const redirectUriResult = AuthSession.makeRedirectUri({
+        scheme,
+        path: 'redirect',
+      });
+      const redirectUri: string = Array.isArray(redirectUriResult) 
+        ? redirectUriResult[0] 
+        : redirectUriResult;
+
+      // Request parameters for Google OAuth
+      const request = new AuthSession.AuthRequest({
+        clientId,
+        scopes: ['openid', 'profile', 'email'],
+        responseType: AuthSession.ResponseType.IdToken,
+        redirectUri,
+        extraParams: {},
+      });
+
+      // Get the discovery document
+      const discovery = {
+        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+        tokenEndpoint: 'https://oauth2.googleapis.com/token',
+        revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+      };
+
+      // Prompt for authentication
+      const result = await request.promptAsync(discovery);
+
+      if (result.type !== 'success') {
+        throw new Error('Google sign-in was cancelled or failed');
+      }
+
+      // Get the ID token from the result
+      const idToken = result.params.id_token;
+      if (!idToken || typeof idToken !== 'string') {
+        throw new Error('Failed to get ID token from Google');
+      }
+
+      // Create a credential and sign in
+      const credential = GoogleAuthProvider.credential(idToken);
+      userCredential = await signInWithCredential(auth, credential);
+    }
+
     const user = userCredential.user;
 
     // Check if user document exists, create if not

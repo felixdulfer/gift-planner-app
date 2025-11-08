@@ -1,7 +1,7 @@
 import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { initializeApp } from "firebase/app";
-import { connectAuthEmulator, getAuth } from "firebase/auth";
+import { connectAuthEmulator, getAuth, Auth } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { Platform } from "react-native";
 
@@ -43,7 +43,7 @@ const app = initializeApp(firebaseConfig);
 // For web, use getAuth (default persistence)
 // For React Native, we'll use getAuth and handle persistence manually
 // since Firebase v12 doesn't properly support custom persistence adapters
-let auth;
+let auth: Auth;
 if (Platform.OS === "web") {
   auth = getAuth(app);
 } else {

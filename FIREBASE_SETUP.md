@@ -53,7 +53,31 @@ EXPO_PUBLIC_FIREBASE_APP_ID=your-app-id-here
 1. In Firebase Console, go to **Authentication** → **Sign-in method**
 2. Enable the following providers:
    - **Email/Password**: Click "Email/Password", toggle "Enable", click "Save"
-   - **Google** (optional): Click "Google", toggle "Enable", enter your support email, click "Save"
+   - **Google**: Click "Google", toggle "Enable", enter your support email, click "Save"
+
+### Setting Up Google OAuth for Mobile (iOS/Android)
+
+For Google sign-in to work on mobile devices, you need to configure OAuth credentials:
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Select your Firebase project (or create a new one)
+3. Navigate to **APIs & Services** → **Credentials**
+4. Click **Create Credentials** → **OAuth client ID**
+5. If prompted, configure the OAuth consent screen first:
+   - Choose "External" (unless you have a Google Workspace)
+   - Fill in the required information
+   - Add your email as a test user if in testing mode
+6. Create OAuth client IDs:
+   - **iOS**: Choose "iOS" as application type, enter your bundle ID (found in `app.json` or `app.config.js`)
+   - **Android**: Choose "Android" as application type, enter your package name and SHA-1 certificate fingerprint
+7. Copy the **Client ID** for each platform
+8. Add the Client ID to your `.env.local` file:
+
+```bash
+EXPO_PUBLIC_GOOGLE_CLIENT_ID=your-ios-or-android-client-id-here
+```
+
+**Note**: For development, you can use the same Client ID for both platforms, but for production, use platform-specific Client IDs.
 
 ## Step 5: Set Up Firestore Database
 
@@ -153,14 +177,12 @@ If everything works, Firebase is configured correctly!
 
 ### Google Sign-In not working on mobile
 
-- `signInWithPopup` only works on web
-- For iOS/Android, you'll need to install additional packages:
-
-  ```bash
-  bun add @react-native-google-signin/google-signin
-  ```
-
-  Then update `lib/auth.ts` to use the native Google Sign-In SDK
+- The app now uses `expo-auth-session` for mobile platforms (iOS/Android) and `signInWithPopup` for web
+- Make sure you've set `EXPO_PUBLIC_GOOGLE_CLIENT_ID` in your environment variables
+- Verify that Google OAuth is enabled in Firebase Console
+- For iOS: Ensure your bundle ID matches the one configured in Google Cloud Console
+- For Android: Ensure your package name and SHA-1 fingerprint match the ones in Google Cloud Console
+- Restart your Expo development server after adding the environment variable
 
 ## Next Steps
 
