@@ -6,18 +6,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../contexts/AuthContext';
 import { getUserData, UserData } from '../../../lib/auth';
 import {
-    Assignment,
-    createAssignment,
-    deleteAssignment,
-    subscribeToAssignmentsForEvent,
+  Assignment,
+  createAssignment,
+  deleteAssignment,
+  subscribeToAssignmentsForEvent,
 } from '../../../lib/firestore/assignments';
 import {
-    Event,
-    subscribeToEvent,
+  Event,
+  subscribeToEvent,
 } from '../../../lib/firestore/events';
 import {
-    subscribeToWishlistsForEvent,
-    Wishlist,
+  subscribeToWishlistsForEvent,
+  Wishlist,
 } from '../../../lib/firestore/wishlists';
 
 interface AssignmentWithDetails extends Assignment {

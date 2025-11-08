@@ -1,33 +1,32 @@
-import { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Platform,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-  FlatList,
-  Platform,
+  View
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import {
-  subscribeToWishlist,
-  addItemToWishlist,
-  deleteWishlistItem,
-  markItemAsPurchased,
-  deleteWishlist,
-  Wishlist,
-  WishlistItem,
-} from '../../lib/firestore/wishlists';
 import {
   getAssignmentForWishlist,
   updateAssignmentStatus,
 } from '../../lib/firestore/assignments';
+import {
+  addItemToWishlist,
+  deleteWishlist,
+  deleteWishlistItem,
+  markItemAsPurchased,
+  subscribeToWishlist,
+  Wishlist,
+  WishlistItem,
+} from '../../lib/firestore/wishlists';
 
 export default function WishlistDetailScreen() {
   const router = useRouter();

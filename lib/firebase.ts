@@ -1,18 +1,19 @@
 import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
-import { initializeApp } from "firebase/app";
-import { getAuth, connectAuthEmulator } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
-import { Platform } from "react-native";
 import Constants from "expo-constants";
+import { initializeApp } from "firebase/app";
+import { connectAuthEmulator, getAuth } from "firebase/auth";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
+import { Platform } from "react-native";
 
 // Check if we should use Firebase emulators
 // Try multiple ways to access the environment variable
 // For development, default to using emulators if env var is not set
 const isDev = __DEV__ || process.env.NODE_ENV !== "production";
-const envVar = 
-  process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR || 
+const envVar =
+  process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR ||
   Constants.expoConfig?.extra?.useFirebaseEmulator;
-const USE_EMULATOR = envVar === "true" || envVar === true || (isDev && envVar !== "false");
+const USE_EMULATOR =
+  envVar === "true" || envVar === true || (isDev && envVar !== "false");
 
 // Firebase configuration
 // For emulators, we can use dummy values

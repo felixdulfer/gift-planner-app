@@ -1,19 +1,19 @@
 import {
-  collection,
-  doc,
   addDoc,
+  collection,
+  deleteDoc,
+  doc,
   getDoc,
   getDocs,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  Timestamp,
-  serverTimestamp,
   onSnapshot,
+  query,
+  serverTimestamp,
+  Timestamp,
   Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '../firebase';
+  updateDoc,
+  where,
+} from "firebase/firestore";
+import { db } from "../firebase";
 
 export interface Event {
   id: string;
@@ -22,12 +22,12 @@ export interface Event {
   createdAt: Timestamp;
   eventDate?: Timestamp;
   members: string[];
-  invitations: Array<{
+  invitations: {
     email: string;
-    status: 'pending' | 'accepted' | 'rejected';
+    status: "pending" | "accepted" | "rejected";
     invitedBy: string;
     invitedAt: Timestamp;
-  }>;
+  }[];
 }
 
 export const createEvent = async (
@@ -45,16 +45,16 @@ export const createEvent = async (
       invitations: [],
     };
 
-    const docRef = await addDoc(collection(db, 'events'), eventData);
+    const docRef = await addDoc(collection(db, "events"), eventData);
     return docRef.id;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to create event');
+    throw new Error(error.message || "Failed to create event");
   }
 };
 
 export const getEvent = async (eventId: string): Promise<Event | null> => {
   try {
-    const docRef = doc(db, 'events', eventId);
+    const docRef = doc(db, "events", eventId);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
@@ -62,15 +62,15 @@ export const getEvent = async (eventId: string): Promise<Event | null> => {
     }
     return null;
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to get event');
+    throw new Error(error.message || "Failed to get event");
   }
 };
 
 export const getEventsForUser = async (userId: string): Promise<Event[]> => {
   try {
     const q = query(
-      collection(db, 'events'),
-      where('members', 'array-contains', userId)
+      collection(db, "events"),
+      where("members", "array-contains", userId)
     );
     const querySnapshot = await getDocs(q);
 
@@ -79,7 +79,7 @@ export const getEventsForUser = async (userId: string): Promise<Event[]> => {
       ...doc.data(),
     })) as Event[];
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to get events');
+    throw new Error(error.message || "Failed to get events");
   }
 };
 
@@ -91,7 +91,7 @@ export const updateEvent = async (
   }>
 ): Promise<void> => {
   try {
-    const docRef = doc(db, 'events', eventId);
+    const docRef = doc(db, "events", eventId);
     const updateData: any = {};
 
     if (updates.name) updateData.name = updates.name;
@@ -101,15 +101,15 @@ export const updateEvent = async (
 
     await updateDoc(docRef, updateData);
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to update event');
+    throw new Error(error.message || "Failed to update event");
   }
 };
 
 export const deleteEvent = async (eventId: string): Promise<void> => {
   try {
-    await deleteDoc(doc(db, 'events', eventId));
+    await deleteDoc(doc(db, "events", eventId));
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to delete event');
+    throw new Error(error.message || "Failed to delete event");
   }
 };
 
@@ -119,11 +119,11 @@ export const inviteUserToEvent = async (
   invitedBy: string
 ): Promise<void> => {
   try {
-    const eventRef = doc(db, 'events', eventId);
+    const eventRef = doc(db, "events", eventId);
     const eventSnap = await getDoc(eventRef);
 
     if (!eventSnap.exists()) {
-      throw new Error('Event not found');
+      throw new Error("Event not found");
     }
 
     const eventData = eventSnap.data() as Event;
@@ -132,12 +132,12 @@ export const inviteUserToEvent = async (
     );
 
     if (existingInvitation) {
-      throw new Error('User already invited');
+      throw new Error("User already invited");
     }
 
     const newInvitation = {
       email,
-      status: 'pending' as const,
+      status: "pending" as const,
       invitedBy,
       invitedAt: serverTimestamp() as Timestamp,
     };
@@ -146,7 +146,7 @@ export const inviteUserToEvent = async (
       invitations: [...(eventData.invitations || []), newInvitation],
     });
   } catch (error: any) {
-    throw new Error(error.message || 'Failed to invite user');
+    throw new Error(error.message || "Failed to invite user");
   }
 };
 
@@ -156,8 +156,8 @@ export const subscribeToEventsForUser = (
   onError?: (error: Error) => void
 ): Unsubscribe => {
   const q = query(
-    collection(db, 'events'),
-    where('members', 'array-contains', userId)
+    collection(db, "events"),
+    where("members", "array-contains", userId)
   );
 
   return onSnapshot(
@@ -170,7 +170,7 @@ export const subscribeToEventsForUser = (
       callback(events);
     },
     (error) => {
-      console.error('Error subscribing to events:', error);
+      console.error("Error subscribing to events:", error);
       if (onError) {
         onError(error as Error);
       } else {
@@ -185,7 +185,7 @@ export const subscribeToEvent = (
   eventId: string,
   callback: (event: Event | null) => void
 ): Unsubscribe => {
-  const docRef = doc(db, 'events', eventId);
+  const docRef = doc(db, "events", eventId);
 
   return onSnapshot(docRef, (docSnap) => {
     if (docSnap.exists()) {
@@ -195,4 +195,3 @@ export const subscribeToEvent = (
     }
   });
 };
-
