@@ -190,6 +190,12 @@ export const getUserData = async (userId: string): Promise<UserData | null> => {
     }
     return null;
   } catch (error: any) {
+    // If it's a permissions error, return null instead of throwing
+    // This allows the UI to show a fallback instead of crashing
+    if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+      console.warn(`Permission denied reading user ${userId}, user document may not exist or rules may not be deployed`);
+      return null;
+    }
     throw new Error(error.message || 'Failed to get user data');
   }
 };

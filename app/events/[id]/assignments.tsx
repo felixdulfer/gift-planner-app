@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../contexts/AuthContext';
 import { getUserData, UserData } from '../../../lib/auth';
@@ -19,6 +19,7 @@ import {
   subscribeToWishlistsForEvent,
   Wishlist,
 } from '../../../lib/firestore/wishlists';
+import { getColors } from '../../../lib/theme';
 
 interface AssignmentWithDetails extends Assignment {
   wishlistName?: string;
@@ -29,12 +30,15 @@ export default function EventAssignmentsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const colors = getColors(colorScheme);
   const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([]);
   const [rawAssignments, setRawAssignments] = useState<Assignment[]>([]);
   const [wishlists, setWishlists] = useState<Wishlist[]>([]);
   const [event, setEvent] = useState<Event | null>(null);
   const [members, setMembers] = useState<Map<string, UserData>>(new Map());
   const [loading, setLoading] = useState(true);
+  const loadingMembersRef = useRef<Set<string>>(new Set());
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedWishlistId, setSelectedWishlistId] = useState<string>('');
   const [selectedUserId, setSelectedUserId] = useState<string>('');
@@ -93,18 +97,44 @@ export default function EventAssignmentsScreen() {
   }, [id, user]);
 
   const loadMemberDetails = async (memberIds: string[]) => {
-    const memberMap = new Map<string, UserData>();
-    for (const memberId of memberIds) {
-      try {
-        const userData = await getUserData(memberId);
-        if (userData) {
-          memberMap.set(memberId, userData);
+    setMembers((prevMembers) => {
+      const memberMap = new Map(prevMembers);
+      
+      // Remove members that are no longer in the event
+      for (const [memberId] of memberMap) {
+        if (!memberIds.includes(memberId)) {
+          memberMap.delete(memberId);
         }
-      } catch (error) {
-        console.error(`Error loading user ${memberId}:`, error);
       }
-    }
-    setMembers(memberMap);
+      
+      // Load missing members asynchronously
+      const membersToLoad = memberIds.filter(
+        (id) => !memberMap.has(id) && !loadingMembersRef.current.has(id)
+      );
+      
+      for (const memberId of membersToLoad) {
+        loadingMembersRef.current.add(memberId);
+        
+        getUserData(memberId)
+          .then((userData) => {
+            if (userData) {
+              setMembers((prevMembers) => {
+                const updatedMap = new Map(prevMembers);
+                updatedMap.set(memberId, userData);
+                return updatedMap;
+              });
+            }
+          })
+          .catch((error) => {
+            console.error(`Error loading user ${memberId}:`, error);
+          })
+          .finally(() => {
+            loadingMembersRef.current.delete(memberId);
+          });
+      }
+      
+      return memberMap;
+    });
   };
 
   const handleCreateAssignment = async () => {
@@ -162,14 +192,14 @@ export default function EventAssignmentsScreen() {
   ) || [];
 
   const renderAssignment = ({ item }: { item: AssignmentWithDetails }) => (
-    <View style={styles.assignmentCard}>
+    <View style={[styles.assignmentCard, { backgroundColor: colors.surface }]}>
       <View style={styles.assignmentHeader}>
         <View style={styles.assignmentInfo}>
-          <Text style={styles.wishlistName}>{item.wishlistName || 'Unknown'}</Text>
-          <Text style={styles.assignedTo}>
+          <Text style={[styles.wishlistName, { color: colors.text }]}>{item.wishlistName || 'Unknown'}</Text>
+          <Text style={[styles.assignedTo, { color: colors.textSecondary }]}>
             Assigned to: {item.assignedToName || item.assignedTo}
           </Text>
-          <Text style={styles.status}>
+          <Text style={[styles.status, { color: colors.textSecondary }]}>
             Status: {item.status === 'purchased' ? '✅ Purchased' : '⏳ Pending'}
           </Text>
         </View>
@@ -186,16 +216,16 @@ export default function EventAssignmentsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#007AFF" />
+            <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
-          <Text style={styles.title}>Assignments</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Assignments</Text>
         </View>
         {isCreator && (
           <TouchableOpacity
@@ -208,13 +238,13 @@ export default function EventAssignmentsScreen() {
       </View>
 
       {showAssignModal && (
-        <View style={styles.modal}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create Assignment</Text>
+        <View style={[styles.modal, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Create Assignment</Text>
 
-            <Text style={styles.modalLabel}>Wishlist</Text>
+            <Text style={[styles.modalLabel, { color: colors.text }]}>Wishlist</Text>
             {unassignedWishlists.length === 0 ? (
-              <Text style={styles.emptyText}>No unassigned wishlists</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No unassigned wishlists</Text>
             ) : (
               <View style={styles.selectContainer}>
                 {unassignedWishlists.map((wishlist) => (
@@ -222,13 +252,15 @@ export default function EventAssignmentsScreen() {
                     key={wishlist.id}
                     style={[
                       styles.selectOption,
-                      selectedWishlistId === wishlist.id && styles.selectOptionSelected,
+                      { backgroundColor: colors.surfaceSecondary },
+                      selectedWishlistId === wishlist.id && { backgroundColor: colors.primary },
                     ]}
                     onPress={() => setSelectedWishlistId(wishlist.id)}
                   >
                     <Text
                       style={[
                         styles.selectOptionText,
+                        { color: colors.text },
                         selectedWishlistId === wishlist.id && styles.selectOptionTextSelected,
                       ]}
                     >
@@ -239,9 +271,9 @@ export default function EventAssignmentsScreen() {
               </View>
             )}
 
-            <Text style={styles.modalLabel}>Assign To</Text>
+            <Text style={[styles.modalLabel, { color: colors.text }]}>Assign To</Text>
             {availableMembers.length === 0 ? (
-              <Text style={styles.emptyText}>No available members</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No available members</Text>
             ) : (
               <View style={styles.selectContainer}>
                 {availableMembers.map((memberId) => {
@@ -251,13 +283,15 @@ export default function EventAssignmentsScreen() {
                       key={memberId}
                       style={[
                         styles.selectOption,
-                        selectedUserId === memberId && styles.selectOptionSelected,
+                        { backgroundColor: colors.surfaceSecondary },
+                        selectedUserId === memberId && { backgroundColor: colors.primary },
                       ]}
                       onPress={() => setSelectedUserId(memberId)}
                     >
                       <Text
                         style={[
                           styles.selectOptionText,
+                          { color: colors.text },
                           selectedUserId === memberId && styles.selectOptionTextSelected,
                         ]}
                       >
@@ -271,14 +305,14 @@ export default function EventAssignmentsScreen() {
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.cancelButton}
+                style={[styles.cancelButton, { backgroundColor: colors.surfaceSecondary }]}
                 onPress={() => {
                   setShowAssignModal(false);
                   setSelectedWishlistId('');
                   setSelectedUserId('');
                 }}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.createButton}
@@ -293,13 +327,13 @@ export default function EventAssignmentsScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <Text>Loading assignments...</Text>
+          <Text style={{ color: colors.text }}>Loading assignments...</Text>
         </View>
       ) : assignments.length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.emptyText}>No assignments yet</Text>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No assignments yet</Text>
           {isCreator && (
-            <Text style={styles.emptySubtext}>
+            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
               Assign wishlists to members to get started!
             </Text>
           )}

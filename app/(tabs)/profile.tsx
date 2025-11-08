@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useInvitations } from '../../contexts/InvitationsContext';
 import { logOut } from '../../lib/auth';
@@ -9,11 +9,14 @@ import {
   acceptInvitation,
   rejectInvitation,
 } from '../../lib/firestore/events';
+import { getColors } from '../../lib/theme';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, userData } = useAuth();
   const { pendingInvitations } = useInvitations();
+  const colorScheme = useColorScheme();
+  const colors = getColors(colorScheme);
 
   const handleAcceptInvitation = async (event: EventWithInvitation) => {
     if (!user?.uid || !user?.email) return;
@@ -78,25 +81,25 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.profileCard}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.profileCard, { backgroundColor: colors.surface }]}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
             {userData?.displayName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}
           </Text>
         </View>
-        <Text style={styles.name}>
+        <Text style={[styles.name, { color: colors.text }]}>
           {userData?.displayName || 'User'}
         </Text>
-        <Text style={styles.email}>{user?.email}</Text>
+        <Text style={[styles.email, { color: colors.textSecondary }]}>{user?.email}</Text>
       </View>
 
       {pendingInvitations.length > 0 && (
-        <View style={styles.invitationsCard}>
-          <View style={styles.invitationsHeader}>
+        <View style={[styles.invitationsCard, { backgroundColor: colors.surface, borderColor: colors.error }]}>
+          <View style={[styles.invitationsHeader, { borderBottomColor: colors.errorBorder }]}>
             <View style={styles.invitationsTitleContainer}>
-              <Ionicons name="mail-unread" size={24} color="#FF3B30" />
-              <Text style={styles.invitationsTitle}>
+              <Ionicons name="mail-unread" size={24} color={colors.error} />
+              <Text style={[styles.invitationsTitle, { color: colors.error }]}>
                 Pending Invitations ({pendingInvitations.length})
               </Text>
             </View>
@@ -105,16 +108,16 @@ export default function ProfileScreen() {
             </View>
           </View>
           {pendingInvitations.map((event) => (
-            <View key={event.id} style={styles.invitationItem}>
+            <View key={event.id} style={[styles.invitationItem, { backgroundColor: colors.invitationBackground, borderColor: colors.invitationBorder }]}>
               <View style={styles.invitationIconContainer}>
-                <Ionicons name="calendar" size={32} color="#007AFF" />
+                <Ionicons name="calendar" size={32} color={colors.primary} />
               </View>
               <View style={styles.invitationInfo}>
-                <Text style={styles.invitationEventName}>{event.name}</Text>
+                <Text style={[styles.invitationEventName, { color: colors.text }]}>{event.name}</Text>
                 {event.eventDate && (
                   <View style={styles.invitationDateRow}>
-                    <Ionicons name="time-outline" size={14} color="#666" />
-                    <Text style={styles.invitationEventDate}>
+                    <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+                    <Text style={[styles.invitationEventDate, { color: colors.textSecondary }]}>
                       {new Date(event.eventDate.seconds * 1000).toLocaleDateString()}
                     </Text>
                   </View>
@@ -129,11 +132,11 @@ export default function ProfileScreen() {
                   <Text style={styles.acceptButtonText}>Accept</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.rejectButton}
+                  style={[styles.rejectButton, { backgroundColor: colors.surfaceSecondary }]}
                   onPress={() => handleRejectInvitation(event)}
                 >
-                  <Ionicons name="close-circle" size={18} color="#666" />
-                  <Text style={styles.rejectButtonText}>Reject</Text>
+                  <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+                  <Text style={[styles.rejectButtonText, { color: colors.textSecondary }]}>Reject</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -151,11 +154,9 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
     padding: 16,
   },
   profileCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 24,
     alignItems: 'center',
@@ -190,20 +191,16 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 4,
   },
   email: {
     fontSize: 14,
-    color: '#666',
   },
   invitationsCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#FF3B30',
     ...Platform.select({
       web: {
         boxShadow: '0px 4px 8px rgba(255, 59, 48, 0.2)',
@@ -224,7 +221,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 2,
-    borderBottomColor: '#FFE5E5',
   },
   invitationsTitleContainer: {
     flexDirection: 'row',
@@ -235,7 +231,6 @@ const styles = StyleSheet.create({
   invitationsTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#FF3B30',
   },
   badgeContainer: {
     backgroundColor: '#FF3B30',
@@ -254,11 +249,9 @@ const styles = StyleSheet.create({
   invitationItem: {
     flexDirection: 'row',
     padding: 16,
-    backgroundColor: '#FFF5F5',
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#FFE5E5',
     alignItems: 'center',
   },
   invitationIconContainer: {
@@ -271,7 +264,6 @@ const styles = StyleSheet.create({
   invitationEventName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#333',
     marginBottom: 6,
   },
   invitationDateRow: {
@@ -281,7 +273,6 @@ const styles = StyleSheet.create({
   },
   invitationEventDate: {
     fontSize: 14,
-    color: '#666',
   },
   invitationActions: {
     flexDirection: 'row',
@@ -308,7 +299,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#f0f0f0',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
@@ -316,7 +306,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rejectButtonText: {
-    color: '#666',
     fontSize: 14,
     fontWeight: '600',
   },

@@ -9,13 +9,11 @@ import { Platform } from "react-native";
 
 // Check if we should use Firebase emulators
 // Try multiple ways to access the environment variable
-// For development, default to using emulators if env var is not set
-const isDev = __DEV__ || process.env.NODE_ENV !== "production";
+// Only use emulators if explicitly enabled (set to "true")
 const envVar =
   process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR ||
   Constants.expoConfig?.extra?.useFirebaseEmulator;
-const USE_EMULATOR =
-  envVar === "true" || envVar === true || (isDev && envVar !== "false");
+const USE_EMULATOR = envVar === "true" || envVar === true;
 
 // Firebase configuration
 // For emulators, we can use dummy values

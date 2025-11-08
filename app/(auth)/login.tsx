@@ -7,10 +7,12 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { signIn, signInWithGoogle, isGoogleSignInAvailable } from '../../lib/auth';
 import { useAuth } from '../../contexts/AuthContext';
+import { getColors } from '../../lib/theme';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -20,6 +22,8 @@ export default function LoginScreen() {
   const { refreshUserData } = useAuth();
   const passwordInputRef = useRef<TextInput>(null);
   const isGoogleAvailable = isGoogleSignInAvailable();
+  const colorScheme = useColorScheme();
+  const colors = getColors(colorScheme);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -53,16 +57,16 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Gift Planner</Text>
-      <Text style={styles.subtitle}>Sign in to your account</Text>
+    <View style={[styles.container, { backgroundColor: colors.surface }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Gift Planner</Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Sign in to your account</Text>
 
       <View style={styles.form}>
-        <Text style={styles.label}>Email</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Email</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
           placeholder="Enter your email"
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.textTertiary}
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -73,12 +77,12 @@ export default function LoginScreen() {
           blurOnSubmit={false}
         />
 
-        <Text style={styles.label}>Password</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Password</Text>
         <TextInput
           ref={passwordInputRef}
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
           placeholder="Enter your password"
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.textTertiary}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -114,7 +118,7 @@ export default function LoginScreen() {
           onPress={() => router.push('/(auth)/register')}
           style={styles.linkButton}
         >
-          <Text style={styles.linkText}>
+          <Text style={[styles.linkText, { color: colors.primary }]}>
             Don't have an account? Sign up
           </Text>
         </TouchableOpacity>
@@ -128,20 +132,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#fff',
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 8,
-    color: '#333',
   },
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 32,
-    color: '#666',
   },
   form: {
     width: '100%',
@@ -149,18 +150,14 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
-    color: '#333',
   },
   button: {
     backgroundColor: '#007AFF',
@@ -185,7 +182,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   linkText: {
-    color: '#007AFF',
     fontSize: 14,
   },
 });

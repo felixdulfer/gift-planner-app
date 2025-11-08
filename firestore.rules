@@ -11,9 +11,11 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Users collection - users can read/write their own data
+    // Users collection - users can read any user's data (for displaying member names)
+    // but can only write their own data
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
     }
 
     // Events collection - users can read events they're members of or have pending invitations

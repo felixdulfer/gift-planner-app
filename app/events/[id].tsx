@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -10,6 +10,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
+    useColorScheme,
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,16 +23,20 @@ import {
     removeMemberFromEvent,
     subscribeToEvent,
 } from '../../lib/firestore/events';
+import { getColors } from '../../lib/theme';
 
 export default function EventDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const colors = getColors(colorScheme);
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [members, setMembers] = useState<Map<string, UserData>>(new Map());
+  const loadingMembersRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!id) return;
@@ -52,18 +57,67 @@ export default function EventDetailScreen() {
   }, [id]);
 
   const loadMemberDetails = async (memberIds: string[]) => {
-    const memberMap = new Map<string, UserData>();
-    for (const memberId of memberIds) {
-      try {
-        const userData = await getUserData(memberId);
-        if (userData) {
-          memberMap.set(memberId, userData);
+    setMembers((prevMembers) => {
+      const memberMap = new Map(prevMembers);
+      
+      // Remove members that are no longer in the event
+      for (const [memberId] of memberMap) {
+        if (!memberIds.includes(memberId)) {
+          memberMap.delete(memberId);
         }
-      } catch (error) {
-        console.error(`Error loading user ${memberId}:`, error);
       }
-    }
-    setMembers(memberMap);
+      
+      // Load missing members asynchronously
+      const membersToLoad = memberIds.filter(
+        (id) => !memberMap.has(id) && !loadingMembersRef.current.has(id)
+      );
+      
+      for (const memberId of membersToLoad) {
+        loadingMembersRef.current.add(memberId);
+        
+        getUserData(memberId)
+          .then((userData) => {
+            if (userData) {
+              setMembers((prevMembers) => {
+                const updatedMap = new Map(prevMembers);
+                updatedMap.set(memberId, userData);
+                return updatedMap;
+              });
+            } else {
+              // User document doesn't exist - try to get email from invitation
+              // This will be handled by the fallback in the render
+              setMembers((prevMembers) => {
+                const updatedMap = new Map(prevMembers);
+                // Set a placeholder so we don't keep trying to load
+                updatedMap.set(memberId, {
+                  email: '',
+                  displayName: '',
+                  createdAt: new Date(),
+                });
+                return updatedMap;
+              });
+            }
+          })
+          .catch((error) => {
+            console.error(`Error loading user ${memberId}:`, error);
+            // Set placeholder on error too so we don't keep retrying
+            setMembers((prevMembers) => {
+              const updatedMap = new Map(prevMembers);
+              updatedMap.set(memberId, {
+                email: '',
+                displayName: '',
+                createdAt: new Date(),
+              });
+              return updatedMap;
+            });
+          })
+          .finally(() => {
+            loadingMembersRef.current.delete(memberId);
+          });
+      }
+      
+      return memberMap;
+    });
   };
 
   const handleInvite = async () => {
@@ -168,17 +222,17 @@ export default function EventDetailScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" />
-        <Text>Loading event...</Text>
+        <Text style={{ color: colors.text }}>Loading event...</Text>
       </View>
     );
   }
 
   if (!event) {
     return (
-      <View style={styles.center}>
-        <Text>Event not found</Text>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.text }}>Event not found</Text>
       </View>
     );
   }
@@ -186,19 +240,19 @@ export default function EventDetailScreen() {
   const isCreator = event.createdBy === user?.uid;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#007AFF" />
+            <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <Text style={styles.eventName}>{event.name}</Text>
+            <Text style={[styles.eventName, { color: colors.text }]}>{event.name}</Text>
             {event.eventDate && (
-              <Text style={styles.eventDate}>
+              <Text style={[styles.eventDate, { color: colors.textSecondary }]}>
                 {new Date(event.eventDate.seconds * 1000).toLocaleDateString()}
               </Text>
             )}
@@ -207,20 +261,33 @@ export default function EventDetailScreen() {
       </View>
       <ScrollView>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Members ({event.members?.length || 0})</Text>
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Members ({event.members?.length || 0})</Text>
         <View style={styles.membersList}>
           {event.members?.map((memberId) => {
             const memberData = members.get(memberId);
             const canRemove = isCreator && memberId !== event.createdBy;
+            
+            // Try to find email from accepted invitation if user data is not available
+            // We'll use the first accepted invitation as a fallback (imperfect but better than nothing)
+            const acceptedInvitations = event.invitations?.filter(inv => inv.status === 'accepted') || [];
+            const fallbackEmail = acceptedInvitations.length > 0 ? acceptedInvitations[0].email : null;
+            
+            // Determine display name and email
+            const displayName = memberData?.displayName || 
+              (memberData?.email ? memberData.email.split('@')[0] : null) ||
+              (fallbackEmail ? fallbackEmail.split('@')[0] : null) ||
+              (memberId.length > 20 ? memberId.substring(0, 8) + '...' : memberId);
+            const displayEmail = memberData?.email || fallbackEmail || memberId;
+            
             return (
-              <View key={memberId} style={styles.memberItem}>
+              <View key={memberId} style={[styles.memberItem, { backgroundColor: colors.surfaceSecondary }]}>
                 <View style={styles.memberInfo}>
-                  <Text style={styles.memberName}>
-                    {memberData?.displayName || 'Loading...'}
+                  <Text style={[styles.memberName, { color: colors.text }]}>
+                    {displayName}
                   </Text>
-                  <Text style={styles.memberEmail}>
-                    {memberData?.email || memberId}
+                  <Text style={[styles.memberEmail, { color: colors.textSecondary }]}>
+                    {displayEmail}
                   </Text>
                 </View>
                 {canRemove && (
@@ -228,7 +295,7 @@ export default function EventDetailScreen() {
                     style={styles.removeButton}
                     onPress={() => handleRemoveMember(memberId)}
                   >
-                    <Ionicons name="close-circle" size={24} color="#FF3B30" />
+                    <Ionicons name="close-circle" size={24} color={colors.error} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -238,12 +305,13 @@ export default function EventDetailScreen() {
       </View>
 
       {isCreator && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Invite User</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Invite User</Text>
           <View style={styles.inviteRow}>
             <TextInput
-              style={styles.inviteInput}
+              style={[styles.inviteInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
               placeholder="Email address"
+              placeholderTextColor={colors.textTertiary}
               value={inviteEmail}
               onChangeText={setInviteEmail}
               keyboardType="email-address"
@@ -265,14 +333,14 @@ export default function EventDetailScreen() {
       )}
 
       {event.invitations?.filter((inv) => inv.status === 'pending').length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Pending Invitations</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Pending Invitations</Text>
           {event.invitations
             ?.filter((inv) => inv.status === 'pending')
             .map((inv, index) => (
-              <View key={index} style={styles.invitationItem}>
-                <Text style={styles.invitationEmail}>{inv.email}</Text>
-                <Text style={styles.invitationStatus}>{inv.status}</Text>
+              <View key={index} style={[styles.invitationItem, { backgroundColor: colors.surfaceSecondary }]}>
+                <Text style={[styles.invitationEmail, { color: colors.text }]}>{inv.email}</Text>
+                <Text style={[styles.invitationStatus, { color: colors.textSecondary }]}>{inv.status}</Text>
               </View>
             ))}
         </View>
@@ -310,7 +378,6 @@ export default function EventDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   center: {
     flex: 1,
@@ -318,10 +385,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    backgroundColor: '#fff',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   headerLeft: {
     flexDirection: 'row',
@@ -337,25 +402,20 @@ const styles = StyleSheet.create({
   eventName: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 8,
   },
   eventDate: {
     fontSize: 16,
-    color: '#666',
   },
   section: {
-    backgroundColor: '#fff',
     padding: 16,
     marginTop: 12,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#e0e0e0',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 12,
   },
   membersList: {
@@ -366,7 +426,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
-    backgroundColor: '#f9f9f9',
     borderRadius: 8,
   },
   memberInfo: {
@@ -375,12 +434,10 @@ const styles = StyleSheet.create({
   memberName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 4,
   },
   memberEmail: {
     fontSize: 14,
-    color: '#666',
   },
   removeButton: {
     padding: 4,
@@ -393,7 +450,6 @@ const styles = StyleSheet.create({
   inviteInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
@@ -416,22 +472,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 12,
-    backgroundColor: '#f9f9f9',
     borderRadius: 8,
     marginBottom: 8,
   },
   invitationEmail: {
     fontSize: 14,
-    color: '#333',
   },
   invitationStatus: {
     fontSize: 14,
-    color: '#666',
     textTransform: 'capitalize',
   },
   emptyText: {
     fontSize: 14,
-    color: '#999',
     fontStyle: 'italic',
   },
   actions: {

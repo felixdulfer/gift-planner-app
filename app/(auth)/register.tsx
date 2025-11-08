@@ -7,10 +7,12 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { signUp, signInWithGoogle, isGoogleSignInAvailable } from '../../lib/auth';
 import { useAuth } from '../../contexts/AuthContext';
+import { getColors } from '../../lib/theme';
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
@@ -22,6 +24,8 @@ export default function RegisterScreen() {
   const emailInputRef = useRef<TextInput>(null);
   const passwordInputRef = useRef<TextInput>(null);
   const isGoogleAvailable = isGoogleSignInAvailable();
+  const colorScheme = useColorScheme();
+  const colors = getColors(colorScheme);
 
   const handleRegister = async () => {
     if (!email || !password || !displayName) {
@@ -60,14 +64,15 @@ export default function RegisterScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
-      <Text style={styles.subtitle}>Sign up to get started</Text>
+    <View style={[styles.container, { backgroundColor: colors.surface }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Sign up to get started</Text>
 
       <View style={styles.form}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
           placeholder="Display Name"
+          placeholderTextColor={colors.textTertiary}
           value={displayName}
           onChangeText={setDisplayName}
           autoCapitalize="words"
@@ -78,8 +83,9 @@ export default function RegisterScreen() {
 
         <TextInput
           ref={emailInputRef}
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
           placeholder="Email"
+          placeholderTextColor={colors.textTertiary}
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -92,8 +98,9 @@ export default function RegisterScreen() {
 
         <TextInput
           ref={passwordInputRef}
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
           placeholder="Password"
+          placeholderTextColor={colors.textTertiary}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -129,7 +136,7 @@ export default function RegisterScreen() {
           onPress={() => router.back()}
           style={styles.linkButton}
         >
-          <Text style={styles.linkText}>
+          <Text style={[styles.linkText, { color: colors.primary }]}>
             Already have an account? Sign in
           </Text>
         </TouchableOpacity>
@@ -143,32 +150,27 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#fff',
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 8,
-    color: '#333',
   },
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 32,
-    color: '#666',
   },
   form: {
     width: '100%',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
   },
   button: {
     backgroundColor: '#007AFF',
@@ -193,7 +195,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   linkText: {
-    color: '#007AFF',
     fontSize: 14,
   },
 });

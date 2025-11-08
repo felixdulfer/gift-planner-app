@@ -1,13 +1,16 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, useColorScheme } from 'react-native';
 import { useInvitations } from '../../contexts/InvitationsContext';
+import { getColors } from '../../lib/theme';
 
 function Badge({ count }: { count: number }) {
   if (count === 0) return null;
+  const colorScheme = useColorScheme();
+  const colors = getColors(colorScheme);
   
   return (
-    <View style={styles.badge}>
+    <View style={[styles.badge, { borderColor: colors.surface }]}>
       <Text style={styles.badgeText}>{count > 9 ? '9+' : count}</Text>
     </View>
   );
@@ -15,13 +18,27 @@ function Badge({ count }: { count: number }) {
 
 export default function TabLayout() {
   const { invitationCount } = useInvitations();
+  const colorScheme = useColorScheme();
+  const colors = getColors(colorScheme);
 
   return (
     <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: '#007AFF',
+      screenOptions={({ route }) => ({
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textTertiary,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+        },
+        headerStyle: {
+          backgroundColor: colors.surface,
+        },
+        headerTintColor: colors.text,
+        headerTitleStyle: {
+          color: colors.text,
+        },
         headerShown: true,
-      }}
+      })}
     >
       <Tabs.Screen
         name="events"
@@ -62,7 +79,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
     borderWidth: 2,
-    borderColor: '#fff',
   },
   badgeText: {
     color: '#fff',

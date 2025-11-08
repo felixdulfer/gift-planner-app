@@ -11,7 +11,8 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  useColorScheme,
+  View,
 } from 'react-native';
 import DraggableFlatList, {
   RenderItemParams,
@@ -37,11 +38,14 @@ import {
   Wishlist,
   WishlistItem,
 } from '../../lib/firestore/wishlists';
+import { getColors } from '../../lib/theme';
 
 export default function WishlistDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const colors = getColors(colorScheme);
   const [wishlist, setWishlist] = useState<Wishlist | null>(null);
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
@@ -425,7 +429,7 @@ export default function WishlistDetailScreen() {
               <Ionicons
                 name={item.isFavorite ? "star" : "star-outline"}
                 size={24}
-                color={item.isFavorite ? "#FFD700" : "#999"}
+                color={item.isFavorite ? "#FFD700" : colors.textTertiary}
               />
             </TouchableOpacity>
           )}
@@ -434,7 +438,7 @@ export default function WishlistDetailScreen() {
             onPress={() => handleToggleExpand(item.id)}
             activeOpacity={0.7}
           >
-            <Text style={styles.itemName}>{item.name}</Text>
+            <Text style={[styles.itemName, { color: colors.text }]}>{item.name}</Text>
           </TouchableOpacity>
           {item.purchasedBy && !isExpanded && (
             <Text style={styles.purchasedEmoji}>💰</Text>
@@ -445,9 +449,9 @@ export default function WishlistDetailScreen() {
             style={styles.chevronButton}
           >
             {isExpanded ? (
-              <Ionicons name="chevron-up" size={20} color="#999" />
+              <Ionicons name="chevron-up" size={20} color={colors.textTertiary} />
             ) : (
-              <Ionicons name="chevron-down" size={20} color="#999" />
+              <Ionicons name="chevron-down" size={20} color={colors.textTertiary} />
             )}
           </TouchableOpacity>
           {canEdit && (
@@ -457,7 +461,7 @@ export default function WishlistDetailScreen() {
               style={styles.dragHandle}
               activeOpacity={0.6}
             >
-              <Ionicons name="reorder-three-outline" size={24} color="#999" />
+              <Ionicons name="reorder-three-outline" size={24} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
         </View>
@@ -477,15 +481,15 @@ export default function WishlistDetailScreen() {
               </View>
             )}
             {item.description && (
-              <Text style={styles.itemDescription}>{item.description}</Text>
+              <Text style={[styles.itemDescription, { color: colors.textSecondary }]}>{item.description}</Text>
             )}
             {item.link && (
-              <Text style={styles.itemLink} numberOfLines={1}>
+              <Text style={[styles.itemLink, { color: colors.primary }]} numberOfLines={1}>
                 {item.link}
               </Text>
             )}
             {item.price && (
-              <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+              <Text style={[styles.itemPrice, { color: colors.text }]}>${item.price.toFixed(2)}</Text>
             )}
             {item.purchasedBy ? (
               <View style={styles.itemActions}>
@@ -513,7 +517,7 @@ export default function WishlistDetailScreen() {
                   style={styles.deleteItemButton}
                   onPress={() => handleDeleteItem(item.id)}
                 >
-                  <Ionicons name="trash" size={18} color="#FF3B30" />
+                  <Ionicons name="trash" size={18} color={colors.error} />
                   <Text style={styles.deleteItemButtonText}>Delete</Text>
                 </TouchableOpacity>
               </View>
@@ -523,8 +527,8 @@ export default function WishlistDetailScreen() {
                 style={styles.editTitleButton}
                 onPress={() => handleStartEditItem(item)}
               >
-                <Ionicons name="create-outline" size={18} color="#007AFF" />
-                <Text style={styles.editTitleButtonText}>Edit Title</Text>
+                <Ionicons name="create-outline" size={18} color={colors.primary} />
+                <Text style={[styles.editTitleButtonText, { color: colors.primary }]}>Edit Title</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -536,24 +540,26 @@ export default function WishlistDetailScreen() {
       <>
         {showFavoritesHeader && (
           <View style={styles.sectionHeaderContainer}>
-            <Text style={styles.sectionHeader}>Favorites</Text>
+            <Text style={[styles.sectionHeader, { color: colors.text }]}>Favorites</Text>
           </View>
         )}
         {showPurchasedHeader && (
             <View style={styles.sectionHeaderContainer}>
-              <Text style={styles.sectionHeader}>Purchased</Text>
+              <Text style={[styles.sectionHeader, { color: colors.text }]}>Purchased</Text>
             </View>
         )}
         {showRegularHeader && (
           <>
-            {showDividerBeforeRegular && <View style={styles.divider} />}
+            {showDividerBeforeRegular && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
             <View style={styles.sectionHeaderContainer}>
             </View>
           </>
         )}
         {item.purchasedBy ? (
           <LinearGradient
-            colors={['#E8F8F2', '#D4F4E6', '#C0F0DA']}
+            colors={colorScheme === 'dark'
+              ? ['#1a2f1a', '#0f1f0f', '#0a0f0a']
+              : ['#E8F8F2', '#D4F4E6', '#C0F0DA']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={cardStyle}
@@ -564,7 +570,9 @@ export default function WishlistDetailScreen() {
           </LinearGradient>
         ) : item.isFavorite ? (
           <LinearGradient
-            colors={['#FFF9E6', '#FFF4CC', '#FFEFB3']}
+            colors={colorScheme === 'dark' 
+              ? ['#3a2f1f', '#2a1f0f', '#1a0f0f']
+              : ['#FFF9E6', '#FFF4CC', '#FFEFB3']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={cardStyle}
@@ -574,7 +582,7 @@ export default function WishlistDetailScreen() {
             </View>
           </LinearGradient>
         ) : (
-          <View style={cardStyle}>
+          <View style={[cardStyle, { backgroundColor: colors.surface }]}>
             {cardContent}
           </View>
         )}
@@ -583,16 +591,16 @@ export default function WishlistDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#007AFF" />
+            <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
-          <Text style={styles.wishlistName}>{wishlist.name}</Text>
+          <Text style={[styles.wishlistName, { color: colors.text }]}>{wishlist.name}</Text>
         </View>
         {canEdit && (
           <TouchableOpacity
@@ -600,13 +608,13 @@ export default function WishlistDetailScreen() {
             onPress={handleOpenSettings}
             activeOpacity={0.7}
           >
-            <Ionicons name="settings-outline" size={24} color="#007AFF" />
+            <Ionicons name="settings-outline" size={24} color={colors.primary} />
           </TouchableOpacity>
         )}
       </View>
 
       {canEdit && (
-        <View style={styles.addSection}>
+        <View style={[styles.addSection, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           {!showAddItem ? (
             <TouchableOpacity
               style={styles.addItemButton}
@@ -617,36 +625,40 @@ export default function WishlistDetailScreen() {
           ) : (
             <View style={styles.addItemForm}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
                 placeholder="Item name *"
+                placeholderTextColor={colors.textTertiary}
                 value={itemName}
                 onChangeText={setItemName}
               />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
                 placeholder="Description (optional)"
+                placeholderTextColor={colors.textTertiary}
                 value={itemDescription}
                 onChangeText={setItemDescription}
                 multiline
               />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
                 placeholder="Link (optional)"
+                placeholderTextColor={colors.textTertiary}
                 value={itemLink}
                 onChangeText={setItemLink}
                 keyboardType="url"
                 autoCapitalize="none"
               />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
                 placeholder="Price (optional)"
+                placeholderTextColor={colors.textTertiary}
                 value={itemPrice}
                 onChangeText={setItemPrice}
                 keyboardType="decimal-pad"
               />
               <View style={styles.addItemActions}>
                 <TouchableOpacity
-                  style={styles.cancelButton}
+                  style={[styles.cancelButton, { backgroundColor: colors.surfaceSecondary }]}
                   onPress={() => {
                     setShowAddItem(false);
                     setItemName('');
@@ -655,7 +667,7 @@ export default function WishlistDetailScreen() {
                     setItemPrice('');
                   }}
                 >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                  <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.saveButton}
@@ -682,9 +694,9 @@ export default function WishlistDetailScreen() {
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>No items yet</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No items yet</Text>
               {canEdit && (
-                <Text style={styles.emptySubtext}>
+                <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
                   Add items to this wishlist
                 </Text>
               )}
@@ -694,22 +706,23 @@ export default function WishlistDetailScreen() {
       </View>
 
       {showEditDialog && (
-        <View style={styles.modal}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Item Title</Text>
+        <View style={[styles.modal, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Item Title</Text>
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
               value={editingItemName}
               onChangeText={setEditingItemName}
               placeholder="Item name"
+              placeholderTextColor={colors.textTertiary}
               autoFocus
             />
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.modalCancelButton}
+                style={[styles.modalCancelButton, { backgroundColor: colors.surfaceSecondary }]}
                 onPress={handleCancelEditItem}
               >
-                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                <Text style={[styles.modalCancelButtonText, { color: colors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalSaveButton}
@@ -729,26 +742,27 @@ export default function WishlistDetailScreen() {
         onRequestClose={handleCloseSettings}
       >
         <TouchableOpacity
-          style={styles.modal}
+          style={[styles.modal, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}
           activeOpacity={1}
           onPress={handleCloseSettings}
         >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Wishlist Settings</Text>
-            <Text style={styles.modalLabel}>Title</Text>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Wishlist Settings</Text>
+            <Text style={[styles.modalLabel, { color: colors.text }]}>Title</Text>
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight, color: colors.text }]}
               value={editingWishlistName}
               onChangeText={setEditingWishlistName}
               placeholder="Wishlist name"
+              placeholderTextColor={colors.textTertiary}
               autoFocus
             />
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.modalCancelButton}
+                style={[styles.modalCancelButton, { backgroundColor: colors.surfaceSecondary }]}
                 onPress={handleCloseSettings}
               >
-                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                <Text style={[styles.modalCancelButtonText, { color: colors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalSaveButton}
@@ -796,13 +810,11 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 12,
     marginLeft: -16,
   },
   divider: {
     height: 1,
-    backgroundColor: '#e0e0e0',
     marginTop: 8,
     marginBottom: 16,
     marginHorizontal: 0,
@@ -816,10 +828,8 @@ const styles = StyleSheet.create({
     height: 100,
   },
   header: {
-    backgroundColor: '#fff',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -836,7 +846,6 @@ const styles = StyleSheet.create({
   wishlistName: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#333',
     flex: 1,
     flexShrink: 1,
     marginRight: 8,
@@ -860,10 +869,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   addSection: {
-    backgroundColor: '#fff',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   addItemButton: {
     backgroundColor: '#007AFF',
@@ -880,11 +887,9 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
   },
   addItemActions: {
     flexDirection: 'row',
@@ -892,13 +897,11 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#e0e0e0',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   cancelButtonText: {
-    color: '#333',
     fontWeight: '600',
   },
   saveButton: {
@@ -913,7 +916,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   itemCard: {
-    backgroundColor: '#fff',
     padding: 16,
     borderRadius: 8,
     marginBottom: 12,
@@ -993,7 +995,6 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
     flex: 1,
     marginRight: 8,
     lineHeight: 24,
@@ -1021,7 +1022,6 @@ const styles = StyleSheet.create({
   },
   editTitleButtonText: {
     marginLeft: 6,
-    color: '#007AFF',
     fontSize: 14,
     fontWeight: '500',
   },
@@ -1072,18 +1072,15 @@ const styles = StyleSheet.create({
   },
   itemDescription: {
     fontSize: 14,
-    color: '#666',
     marginBottom: 4,
   },
   itemLink: {
     fontSize: 12,
-    color: '#007AFF',
     marginBottom: 4,
   },
   itemPrice: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
   },
   itemActions: {
@@ -1141,12 +1138,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#666',
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
   },
   modal: {
     position: 'absolute',
@@ -1154,13 +1149,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
   },
   modalContent: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 20,
     width: '90%',
@@ -1169,16 +1162,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 20,
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
     marginBottom: 20,
   },
   modalActions: {
@@ -1187,13 +1177,11 @@ const styles = StyleSheet.create({
   },
   modalCancelButton: {
     flex: 1,
-    backgroundColor: '#e0e0e0',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   modalCancelButtonText: {
-    color: '#333',
     fontWeight: '600',
   },
   modalSaveButton: {
@@ -1210,7 +1198,6 @@ const styles = StyleSheet.create({
   modalLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
   },
   modalDeleteButton: {

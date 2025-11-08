@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, createElement } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Platform,
+  useColorScheme,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
@@ -16,10 +17,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { createEvent } from '../../lib/firestore/events';
+import { getColors } from '../../lib/theme';
 
 export default function CreateEventScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const colors = getColors(colorScheme);
   const [name, setName] = useState('');
   const [eventDate, setEventDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -69,38 +73,39 @@ export default function CreateEventScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#007AFF" />
+          <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Event</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Create Event</Text>
         <View style={styles.backButtonPlaceholder} />
       </View>
       <ScrollView style={styles.scrollView}>
         <View style={styles.form}>
-          <Text style={styles.label}>Event Name</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Event Name</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.borderLight, color: colors.text }]}
             placeholder="e.g., Christmas 2025"
+            placeholderTextColor={colors.textTertiary}
             value={name}
             onChangeText={setName}
             returnKeyType="done"
             onSubmitEditing={handleCreate}
           />
 
-        <Text style={styles.label}>Event Date (Optional)</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Event Date (Optional)</Text>
         <TouchableOpacity
-          style={styles.dateButton}
+          style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
           onPress={() => {
             setTempDate(eventDate || new Date());
             setShowDatePicker(true);
           }}
         >
-          <Text style={styles.dateButtonText}>
+          <Text style={[styles.dateButtonText, { color: colors.text }]}>
             {eventDate
               ? eventDate.toLocaleDateString()
               : 'Select a date'}
@@ -109,31 +114,59 @@ export default function CreateEventScreen() {
 
         {showDatePicker && (
           <View style={styles.datePickerContainer}>
-            {Platform.OS === 'ios' && (
-              <View style={styles.datePickerActions}>
-                <TouchableOpacity
-                  onPress={() => setShowDatePicker(false)}
-                  style={styles.datePickerButton}
-                >
-                  <Text style={styles.datePickerButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleConfirmDate}
-                  style={styles.datePickerButton}
-                >
-                  <Text style={[styles.datePickerButtonText, styles.datePickerButtonConfirm]}>
-                    Confirm
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            {Platform.OS === 'web' ? (
+              createElement('input', {
+                type: 'date',
+                value: tempDate.toISOString().split('T')[0],
+                min: new Date().toISOString().split('T')[0],
+                onChange: (e: any) => {
+                  if (e.target.value) {
+                    const selectedDate = new Date(e.target.value + 'T00:00:00');
+                    setTempDate(selectedDate);
+                    setEventDate(selectedDate);
+                    setShowDatePicker(false);
+                  }
+                },
+                style: {
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: '16px',
+                  border: `1px solid ${colors.borderLight}`,
+                  borderRadius: '8px',
+                  backgroundColor: colors.surface,
+                  color: colors.text,
+                  cursor: 'pointer',
+                },
+              })
+            ) : (
+              <>
+                {Platform.OS === 'ios' && (
+                  <View style={[styles.datePickerActions, { backgroundColor: colors.surface, borderBottomColor: colors.borderLight }]}>
+                    <TouchableOpacity
+                      onPress={() => setShowDatePicker(false)}
+                      style={styles.datePickerButton}
+                    >
+                      <Text style={[styles.datePickerButtonText, { color: colors.primary }]}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleConfirmDate}
+                      style={styles.datePickerButton}
+                    >
+                      <Text style={[styles.datePickerButtonText, styles.datePickerButtonConfirm, { color: colors.primary }]}>
+                        Confirm
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleDateChange}
+                  minimumDate={new Date()}
+                />
+              </>
             )}
-            <DateTimePicker
-              value={tempDate}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleDateChange}
-              minimumDate={new Date()}
-            />
           </View>
         )}
 
@@ -142,7 +175,7 @@ export default function CreateEventScreen() {
             style={styles.clearButton}
             onPress={() => setEventDate(null)}
           >
-            <Text style={styles.clearButtonText}>Clear date</Text>
+            <Text style={[styles.clearButtonText, { color: colors.primary }]}>Clear date</Text>
           </TouchableOpacity>
         )}
 
@@ -166,16 +199,13 @@ export default function CreateEventScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   backButton: {
     padding: 4,
@@ -183,7 +213,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
   },
   backButtonPlaceholder: {
     width: 32,
@@ -197,37 +226,30 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
     marginTop: 16,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
     marginBottom: 16,
   },
   dateButton: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
-    backgroundColor: '#fff',
     marginBottom: 8,
   },
   dateButtonText: {
     fontSize: 16,
-    color: '#333',
   },
   clearButton: {
     marginBottom: 16,
     alignItems: 'flex-start',
   },
   clearButtonText: {
-    color: '#007AFF',
     fontSize: 14,
   },
   datePickerContainer: {
@@ -238,18 +260,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#fff',
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
   },
   datePickerButton: {
     padding: 8,
   },
   datePickerButtonText: {
     fontSize: 16,
-    color: '#007AFF',
   },
   datePickerButtonConfirm: {
     fontWeight: '600',
