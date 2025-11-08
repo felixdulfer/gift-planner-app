@@ -175,6 +175,11 @@ export default function WishlistDetailScreen() {
         console.error('Error updating assignment:', assignmentError);
       }
       
+      // Collapse the item after marking as purchased
+      if (expandedItemId === itemId) {
+        setExpandedItemId(null);
+      }
+      
       // Wishlist will update automatically via real-time listener
     } catch (error: any) {
       Alert.alert('Error', error.message);
