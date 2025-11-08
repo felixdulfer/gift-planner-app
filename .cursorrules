@@ -1,14 +1,5 @@
 # Cursor Rules for Gift Planner App
 
-## Package Manager
-
-This project uses **Bun** as the package manager, not npm or yarn.
-
-- Install dependencies: `bun install`
-- Add a package: `bun add <package-name>`
-- Remove a package: `bun remove <package-name>`
-- Run scripts: `bun run <script-name>`
-
 ## Tech Stack
 
 - **Framework**: Expo (React Native)
@@ -33,6 +24,6 @@ This project uses **Bun** as the package manager, not npm or yarn.
 
 ## Important Notes
 
-- Firebase configuration uses environment variables (EXPO_PUBLIC_*)
+- Firebase configuration uses environment variables (EXPO*PUBLIC*\*)
 - Auth state persistence is handled manually for React Native (Firebase v12 limitation)
 - Real-time updates use Firestore listeners (onSnapshot)

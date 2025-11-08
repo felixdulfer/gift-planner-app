@@ -48,34 +48,6 @@ EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
 EXPO_PUBLIC_FIREBASE_APP_ID=your-app-id-here
 ```
 
-2. Install dotenv (if not already installed):
-
-```bash
-bun add dotenv
-```
-
-3. **Important**: Add `.env` to your `.gitignore` file to keep your credentials secure:
-
-```text
-.env
-.env.local
-```
-
-### Option B: Direct Configuration
-
-Edit `lib/firebase.ts` and replace the placeholder values with your actual Firebase config:
-
-```typescript
-const firebaseConfig = {
-  apiKey: "your-actual-api-key",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "your-app-id",
-};
-```
-
 ## Step 4: Enable Authentication
 
 1. In Firebase Console, go to **Authentication** → **Sign-in method**
