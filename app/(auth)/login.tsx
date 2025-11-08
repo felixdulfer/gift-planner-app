@@ -58,9 +58,11 @@ export default function LoginScreen() {
       <Text style={styles.subtitle}>Sign in to your account</Text>
 
       <View style={styles.form}>
+        <Text style={styles.label}>Email</Text>
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder="Enter your email"
+          placeholderTextColor="#999"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -71,10 +73,12 @@ export default function LoginScreen() {
           blurOnSubmit={false}
         />
 
+        <Text style={styles.label}>Password</Text>
         <TextInput
           ref={passwordInputRef}
           style={styles.input}
-          placeholder="Password"
+          placeholder="Enter your password"
+          placeholderTextColor="#999"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -142,6 +146,12 @@ const styles = StyleSheet.create({
   form: {
     width: '100%',
   },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
@@ -150,6 +160,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     fontSize: 16,
     backgroundColor: '#f9f9f9',
+    color: '#333',
   },
   button: {
     backgroundColor: '#007AFF',
