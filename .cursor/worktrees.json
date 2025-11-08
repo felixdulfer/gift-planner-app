@@ -1,0 +1,6 @@
+{
+  "setup-worktree": [
+    "bun install",
+    "echo 'EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true' > .env.local"
+  ]
+}
