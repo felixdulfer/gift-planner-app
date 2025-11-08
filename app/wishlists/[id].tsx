@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -13,7 +15,6 @@ import {
 } from 'react-native';
 import DraggableFlatList, {
   RenderItemParams,
-  ScaleDecorator,
 } from 'react-native-draggable-flatlist';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
@@ -31,6 +32,7 @@ import {
   reorderWishlistItems,
   subscribeToWishlist,
   unmarkItemAsPurchased,
+  updateWishlist,
   updateWishlistItem,
   Wishlist,
   WishlistItem,
@@ -51,6 +53,10 @@ export default function WishlistDetailScreen() {
   const [userDataMap, setUserDataMap] = useState<Map<string, UserData>>(new Map());
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemName, setEditingItemName] = useState('');
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [editingWishlistName, setEditingWishlistName] = useState('');
 
   const loadUserData = useCallback(async (userIds: string[]) => {
     // Get current map to check what we already have
@@ -246,6 +252,30 @@ export default function WishlistDetailScreen() {
     );
   };
 
+  const handleOpenSettings = () => {
+    if (wishlist) {
+      setEditingWishlistName(wishlist.name);
+      setShowSettingsModal(true);
+    }
+  };
+
+  const handleCloseSettings = () => {
+    setShowSettingsModal(false);
+    setEditingWishlistName('');
+  };
+
+  const handleUpdateWishlistName = async () => {
+    if (!id || !editingWishlistName.trim()) return;
+
+    try {
+      await updateWishlist(id, { name: editingWishlistName.trim() });
+      setShowSettingsModal(false);
+      setEditingWishlistName('');
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
   const handleDragEnd = async ({ data }: { data: WishlistItem[] }) => {
     if (!id || !wishlist || !event || !user) return;
     
@@ -254,7 +284,6 @@ export default function WishlistDetailScreen() {
 
     try {
       await reorderWishlistItems(id, data);
-      // Wishlist will update automatically via real-time listener
     } catch (error: any) {
       Alert.alert('Error', error.message);
     }
@@ -264,6 +293,7 @@ export default function WishlistDetailScreen() {
     if (!canEdit) return;
     setEditingItemId(item.id);
     setEditingItemName(item.name);
+    setShowEditDialog(true);
   };
 
   const handleSaveEditItem = async () => {
@@ -275,6 +305,7 @@ export default function WishlistDetailScreen() {
       });
       setEditingItemId(null);
       setEditingItemName('');
+      setShowEditDialog(false);
       // Wishlist will update automatically via real-time listener
     } catch (error: any) {
       Alert.alert('Error', error.message);
@@ -284,6 +315,17 @@ export default function WishlistDetailScreen() {
   const handleCancelEditItem = () => {
     setEditingItemId(null);
     setEditingItemName('');
+    setShowEditDialog(false);
+  };
+
+  const handleToggleExpand = (itemId: string) => {
+    if (expandedItemId === itemId) {
+      setExpandedItemId(null);
+      setEditingItemId(null); // Cancel editing if collapsing
+      setEditingItemName('');
+    } else {
+      setExpandedItemId(itemId);
+    }
   };
 
   const handleToggleFavorite = async (itemId: string, currentFavorite: boolean) => {
@@ -319,29 +361,49 @@ export default function WishlistDetailScreen() {
     );
   }
 
-  const isCreator = wishlist.createdBy === user?.uid;
   const isEventMember = event?.members?.includes(user?.uid || '') || false;
   const canEdit = isEventMember; // All event members can edit
 
-  // Sort items: favorites first, then by current order
-  const sortedItems = [...(wishlist.items || [])].sort((a, b) => {
-    const aFavorite = a.isFavorite ? 1 : 0;
-    const bFavorite = b.isFavorite ? 1 : 0;
-    return bFavorite - aFavorite; // Favorites first
-  });
+  // Split items into favorites and non-favorites
+  const favoriteItems = (wishlist.items || []).filter(item => item.isFavorite);
+  const nonFavoriteItems = (wishlist.items || []).filter(item => !item.isFavorite);
+  
+  // Combine items with section markers for rendering
+  const allItemsWithSections: (WishlistItem | { type: 'header' | 'divider', id: string, label?: string })[] = [];
+  
+  if (favoriteItems.length > 0) {
+    allItemsWithSections.push({ type: 'header', id: 'favorites-header', label: 'Favorites' });
+    allItemsWithSections.push(...favoriteItems);
+  }
+  
+  if (favoriteItems.length > 0 && nonFavoriteItems.length > 0) {
+    allItemsWithSections.push({ type: 'divider', id: 'divider' });
+  }
+  
+  if (nonFavoriteItems.length > 0) {
+    allItemsWithSections.push(...nonFavoriteItems);
+  }
+  
+  // Filter out section markers for drag operations
+  const itemsForDrag = [...favoriteItems, ...nonFavoriteItems];
 
-  const renderItem = ({ item, drag, isActive }: RenderItemParams<WishlistItem>) => {
+  const renderItem = ({ item, drag, isActive, index }: RenderItemParams<WishlistItem> & { index?: number }) => {
     const purchaserData = item.purchasedBy ? userDataMap.get(item.purchasedBy) : null;
     const purchaserName = purchaserData?.displayName || item.purchasedBy || 'Unknown';
+    const isExpanded = expandedItemId === item.id;
     
-    return (
-      <ScaleDecorator>
-        <View
-          style={[
-            styles.itemCard,
-            isActive && styles.itemCardActive,
-          ]}
-        >
+    // Check if we need to render a divider before this item (first non-favorite)
+    const showDivider = index !== undefined && favoriteItems.length > 0 && index === favoriteItems.length;
+    
+    const cardStyle = [
+      styles.itemCard,
+      item.purchasedBy && styles.itemCardPurchased,
+      isActive && styles.itemCardActive,
+    ];
+
+    const cardContent = (
+      <>
+        <View style={styles.itemHeaderRow}>
           {canEdit && (
             <TouchableOpacity
               onPress={() => handleToggleFavorite(item.id, item.isFavorite || false)}
@@ -355,48 +417,53 @@ export default function WishlistDetailScreen() {
               />
             </TouchableOpacity>
           )}
-          <View style={styles.itemContent}>
-            <View style={styles.itemHeader}>
-              {editingItemId === item.id ? (
-                <View style={styles.editNameContainer}>
-                  <TextInput
-                    style={styles.editNameInput}
-                    value={editingItemName}
-                    onChangeText={setEditingItemName}
-                    autoFocus
-                    onSubmitEditing={handleSaveEditItem}
-                    onBlur={handleSaveEditItem}
-                  />
-                  <TouchableOpacity
-                    style={styles.editNameButton}
-                    onPress={handleSaveEditItem}
-                  >
-                    <Ionicons name="checkmark" size={20} color="#4CAF50" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.editNameButton}
-                    onPress={handleCancelEditItem}
-                  >
-                    <Ionicons name="close" size={20} color="#FF3B30" />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  onPress={() => handleStartEditItem(item)}
-                  disabled={!canEdit}
-                  style={styles.itemNameTouchable}
-                >
-                  <Text style={styles.itemName}>{item.name}</Text>
-                </TouchableOpacity>
-              )}
-              {item.purchasedBy && (
-                <View style={styles.purchasedBadge}>
-                  <Text style={styles.purchasedText}>
-                    Purchased by {purchaserName}
-                  </Text>
-                </View>
-              )}
-            </View>
+          <TouchableOpacity
+            style={styles.itemTitleArea}
+            onPress={() => handleToggleExpand(item.id)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.itemName}>{item.name}</Text>
+          </TouchableOpacity>
+          {item.purchasedBy && !isExpanded && (
+            <Text style={styles.purchasedEmoji}>💰</Text>
+          )}
+          <TouchableOpacity
+            onPress={() => handleToggleExpand(item.id)}
+            activeOpacity={0.7}
+            style={styles.chevronButton}
+          >
+            {isExpanded ? (
+              <Ionicons name="chevron-up" size={20} color="#999" />
+            ) : (
+              <Ionicons name="chevron-down" size={20} color="#999" />
+            )}
+          </TouchableOpacity>
+          {canEdit && (
+            <TouchableOpacity
+              onLongPress={drag}
+              disabled={isActive}
+              style={styles.dragHandle}
+              activeOpacity={0.6}
+            >
+              <Ionicons name="reorder-three-outline" size={24} color="#999" />
+            </TouchableOpacity>
+          )}
+        </View>
+        {isExpanded && (
+          <View style={styles.itemExpandedContent}>
+            {item.purchasedBy && (
+              <View style={styles.purchasedBadge}>
+                <Text style={styles.purchasedText}>
+                  Purchased by {purchaserName}
+                  {item.purchasedAt && (
+                    <Text style={styles.purchasedDate}>
+                      {' • '}
+                      {new Date(item.purchasedAt.seconds * 1000).toLocaleDateString()}
+                    </Text>
+                  )}
+                </Text>
+              </View>
+            )}
             {item.description && (
               <Text style={styles.itemDescription}>{item.description}</Text>
             )}
@@ -416,48 +483,61 @@ export default function WishlistDetailScreen() {
                 >
                   <Text style={styles.unmarkPurchaseButtonText}>Unmark as Purchased</Text>
                 </TouchableOpacity>
-                {canEdit && (
-                  <TouchableOpacity
-                    style={styles.deleteItemButton}
-                    onPress={() => handleDeleteItem(item.id)}
-                  >
-                    <Ionicons name="trash" size={20} color="#fff" />
-                  </TouchableOpacity>
-                )}
               </View>
             ) : (
               <View style={styles.itemActions}>
-                {item.isFavorite && (
-                  <TouchableOpacity
-                    style={styles.purchaseButton}
-                    onPress={() => handleMarkPurchased(item.id)}
-                  >
-                    <Text style={styles.purchaseButtonText}>Mark as Purchased</Text>
-                  </TouchableOpacity>
-                )}
-                {canEdit && (
-                  <TouchableOpacity
-                    style={styles.deleteItemButton}
-                    onPress={() => handleDeleteItem(item.id)}
-                  >
-                    <Ionicons name="trash" size={20} color="#fff" />
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  style={styles.purchaseButton}
+                  onPress={() => handleMarkPurchased(item.id)}
+                >
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <Text style={styles.purchaseButtonText}>Mark as Purchased</Text>
+                </TouchableOpacity>
               </View>
             )}
+            {canEdit && (
+              <View style={styles.deleteButtonRow}>
+                <TouchableOpacity
+                  style={styles.deleteItemButton}
+                  onPress={() => handleDeleteItem(item.id)}
+                >
+                  <Ionicons name="trash" size={18} color="#FF3B30" />
+                  <Text style={styles.deleteItemButtonText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {canEdit && (
+              <TouchableOpacity
+                style={styles.editTitleButton}
+                onPress={() => handleStartEditItem(item)}
+              >
+                <Ionicons name="create-outline" size={18} color="#007AFF" />
+                <Text style={styles.editTitleButtonText}>Edit Title</Text>
+              </TouchableOpacity>
+            )}
           </View>
-          {canEdit && (
-            <TouchableOpacity
-              onLongPress={drag}
-              disabled={isActive}
-              style={styles.dragHandle}
-              activeOpacity={0.6}
-            >
-              <Ionicons name="reorder-three-outline" size={24} color="#999" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </ScaleDecorator>
+        )}
+      </>
+    );
+
+    return (
+      <>
+        {showDivider && <View style={styles.divider} />}
+        {item.purchasedBy ? (
+          <LinearGradient
+            colors={['#E8F8F2', '#D4F4E6', '#C0F0DA']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={cardStyle}
+          >
+            {cardContent}
+          </LinearGradient>
+        ) : (
+          <View style={cardStyle}>
+            {cardContent}
+          </View>
+        )}
+      </>
     );
   };
 
@@ -473,12 +553,13 @@ export default function WishlistDetailScreen() {
           </TouchableOpacity>
           <Text style={styles.wishlistName}>{wishlist.name}</Text>
         </View>
-        {isCreator && (
+        {canEdit && (
           <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={handleDeleteWishlist}
+            style={styles.settingsButton}
+            onPress={handleOpenSettings}
+            activeOpacity={0.7}
           >
-            <Text style={styles.deleteButtonText}>Delete</Text>
+            <Ionicons name="settings-outline" size={24} color="#007AFF" />
           </TouchableOpacity>
         )}
       </View>
@@ -548,12 +629,22 @@ export default function WishlistDetailScreen() {
       )}
 
       <DraggableFlatList
-        data={sortedItems}
-        renderItem={renderItem}
+        data={itemsForDrag}
+        renderItem={(params) => {
+          const index = itemsForDrag.findIndex(i => i.id === params.item.id);
+          return renderItem({ ...params, index });
+        }}
         keyExtractor={(item) => item.id}
         onDragEnd={handleDragEnd}
         activationDistance={10}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          favoriteItems.length > 0 ? (
+            <View style={styles.sectionHeaderContainer}>
+              <Text style={styles.sectionHeader}>Favorites</Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>No items yet</Text>
@@ -565,6 +656,81 @@ export default function WishlistDetailScreen() {
           </View>
         }
       />
+
+      {showEditDialog && (
+        <View style={styles.modal}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Item Title</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editingItemName}
+              onChangeText={setEditingItemName}
+              placeholder="Item name"
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={handleCancelEditItem}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSaveButton}
+                onPress={handleSaveEditItem}
+              >
+                <Text style={styles.modalSaveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      <Modal
+        visible={showSettingsModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseSettings}
+      >
+        <TouchableOpacity
+          style={styles.modal}
+          activeOpacity={1}
+          onPress={handleCloseSettings}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Wishlist Settings</Text>
+            <Text style={styles.modalLabel}>Title</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editingWishlistName}
+              onChangeText={setEditingWishlistName}
+              placeholder="Wishlist name"
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={handleCloseSettings}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSaveButton}
+                onPress={handleUpdateWishlistName}
+              >
+                <Text style={styles.modalSaveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.modalDeleteButton}
+              onPress={handleDeleteWishlist}
+            >
+              <Ionicons name="trash" size={18} color="#fff" />
+              <Text style={styles.modalDeleteButtonText}>Delete Wishlist</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -578,6 +744,40 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  sectionHeaderContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 0,
+    paddingBottom: 12,
+  },
+  section: {
+    paddingHorizontal: 0,
+    paddingTop: 16,
+  },
+  sectionHeader: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    marginLeft: -16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginTop: 8,
+    marginBottom: 16,
+    marginHorizontal: 0,
+  },
+  list: {
+    paddingBottom: 32,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  listFooter: {
+    height: 100,
   },
   header: {
     backgroundColor: '#fff',
@@ -602,6 +802,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     flex: 1,
+    flexShrink: 1,
+    marginRight: 8,
+  },
+  settingsButton: {
+    padding: 4,
+    minWidth: 32,
+    minHeight: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   deleteButton: {
     backgroundColor: '#FF3B30',
@@ -666,16 +876,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
-  list: {
-    padding: 16,
-  },
   itemCard: {
     backgroundColor: '#fff',
     padding: 16,
     borderRadius: 8,
     marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    overflow: 'hidden',
     ...Platform.select({
       web: {
         boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
@@ -689,30 +895,57 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  itemCardPurchased: {
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
   itemCardActive: {
     opacity: 0.8,
     transform: [{ scale: 1.02 }],
   },
-  dragHandle: {
-    marginLeft: 12,
-    paddingTop: 2,
-    paddingHorizontal: 4,
-    paddingVertical: 8,
+  itemHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
   },
   favoriteButton: {
     marginRight: 12,
-    paddingTop: 2,
     paddingHorizontal: 4,
-    paddingVertical: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  itemTitleArea: {
+    flex: 1,
+    marginRight: 8,
+    justifyContent: 'center',
+  },
+  chevronButton: {
+    marginLeft: 8,
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dragHandle: {
+    marginLeft: 12,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  itemExpandedContent: {
+    marginTop: 12,
   },
   itemContent: {
     flex: 1,
+    justifyContent: 'center',
   },
   itemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 8,
+  },
+  itemHeaderCollapsed: {
+    marginBottom: 0,
   },
   itemName: {
     fontSize: 18,
@@ -720,10 +953,34 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
     marginRight: 8,
+    lineHeight: 24,
+    textAlignVertical: 'center',
+  },
+  itemNameContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
   },
   itemNameTouchable: {
     flex: 1,
     marginRight: 8,
+  },
+  expandIcon: {
+    marginLeft: 8,
+  },
+  editTitleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  editTitleButtonText: {
+    marginLeft: 6,
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '500',
   },
   editNameContainer: {
     flex: 1,
@@ -752,11 +1009,23 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 4,
     maxWidth: '70%',
+    marginBottom: 12,
   },
   purchasedText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  purchasedDate: {
+    fontSize: 12,
+    fontWeight: '400',
+    opacity: 0.9,
+  },
+  purchasedEmoji: {
+    fontSize: 20,
+    marginRight: 8,
+    lineHeight: 24,
+    textAlignVertical: 'center',
   },
   itemDescription: {
     fontSize: 14,
@@ -787,11 +1056,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
   purchaseButtonText: {
     color: '#fff',
     fontWeight: '600',
-    textAlign: 'center',
   },
   unmarkPurchaseButton: {
     flex: 1,
@@ -807,14 +1077,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   deleteItemButton: {
-    backgroundColor: '#FF3B30',
-    padding: 10,
-    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
-    width: 44,
-    height: 44,
-    marginLeft: 'auto',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  deleteButtonRow: {
+    marginTop: 8,
+  },
+  deleteItemButtonText: {
+    color: '#FF3B30',
+    fontWeight: '600',
+    fontSize: 16,
   },
   empty: {
     padding: 32,
@@ -828,6 +1104,85 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     color: '#999',
+  },
+  modal: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 20,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: '#e0e0e0',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    color: '#333',
+    fontWeight: '600',
+  },
+  modalSaveButton: {
+    flex: 1,
+    backgroundColor: '#007AFF',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalSaveButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  modalDeleteButton: {
+    backgroundColor: '#FF3B30',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  modalDeleteButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });
 
