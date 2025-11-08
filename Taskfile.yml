@@ -1,0 +1,79 @@
+version: '3'
+
+includes:
+  expo:
+    taskfile: Taskfile.expo.yml
+  firebase:
+    taskfile: Taskfile.firebase.yml
+
+vars:
+  PACKAGE_MANAGER: bun
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  dev:
+    desc: Start development server
+    cmds:
+      - task: expo:start
+      - task: firebase:emulators
+    run: parallel
+
+  # Installation & Setup
+  install:
+    desc: Install dependencies
+    cmds:
+      - '{{.PACKAGE_MANAGER}} install'
+
+  # Linting
+  lint:
+    desc: Run ESLint
+    cmds:
+      - '{{.PACKAGE_MANAGER}} run lint'
+
+  lint:md:
+    desc: Lint markdown files
+    cmds:
+      - '{{.PACKAGE_MANAGER}} run lint:md'
+
+  lint:md:fix:
+    desc: Fix markdown linting issues
+    cmds:
+      - '{{.PACKAGE_MANAGER}} run lint:md:fix'
+
+  lint:all:
+    desc: Run all linting tasks
+    cmds:
+      - task: lint
+      - task: lint:md
+
+  # Utilities
+  reset:
+    desc: Reset project
+    cmds:
+      - '{{.PACKAGE_MANAGER}} run reset-project'
+
+  clean:
+    desc: Clean build artifacts and dependencies
+    cmds:
+      - rm -rf node_modules
+      - rm -rf ios/Pods
+      - rm -rf ios/build
+      - rm -f bun.lock
+
+  clean:install:
+    desc: Clean and reinstall dependencies
+    deps:
+      - clean
+    cmds:
+      - task: install
+
+  # Type checking
+  typecheck:
+    desc: Run TypeScript type checking
+    cmds:
+      - '{{.PACKAGE_MANAGER}} run tsc --noEmit'
+
