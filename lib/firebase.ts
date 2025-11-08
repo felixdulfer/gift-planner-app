@@ -1,7 +1,9 @@
 import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { initializeApp } from "firebase/app";
-import { connectAuthEmulator, getAuth, Auth } from "firebase/auth";
+// getReactNativePersistence exists at runtime but may not be in TypeScript types
+// @ts-ignore
+import { Auth, connectAuthEmulator, getAuth, getReactNativePersistence, initializeAuth } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { Platform } from "react-native";
 
@@ -41,43 +43,25 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase Auth with platform-specific persistence
 // For web, use getAuth (default persistence)
-// For React Native, we'll use getAuth and handle persistence manually
-// since Firebase v12 doesn't properly support custom persistence adapters
+// For React Native, use initializeAuth with AsyncStorage persistence
 let auth: Auth;
 if (Platform.OS === "web") {
   auth = getAuth(app);
 } else {
-  // For React Native, use getAuth
-  // Note: Auth state won't persist automatically, but the app will work
-  // You can manually persist auth state using AsyncStorage if needed
-  auth = getAuth(app);
-
-  // Optional: Manually handle auth state persistence
-  // This is a workaround until Firebase properly supports React Native persistence
-  auth.onAuthStateChanged(async (user) => {
-    if (user) {
-      // User is signed in - you can manually save to AsyncStorage if needed
-      try {
-        await ReactNativeAsyncStorage.setItem(
-          "firebase_auth_user",
-          JSON.stringify({
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-          })
-        );
-      } catch (error) {
-        console.warn("Failed to save auth state:", error);
-      }
+  // For React Native, use initializeAuth with AsyncStorage persistence
+  // If initializeAuth fails (e.g., already initialized), fall back to getAuth
+  try {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+    });
+  } catch (error: any) {
+    // Auth might already be initialized (e.g., during hot reload)
+    if (error.code === "auth/already-initialized") {
+      auth = getAuth(app);
     } else {
-      // User is signed out
-      try {
-        await ReactNativeAsyncStorage.removeItem("firebase_auth_user");
-      } catch (error) {
-        console.warn("Failed to remove auth state:", error);
-      }
+      throw error;
     }
-  });
+  }
 }
 
 export { auth };
