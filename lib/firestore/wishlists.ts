@@ -15,6 +15,17 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
+// Helper function to remove undefined values from objects
+const removeUndefined = <T extends Record<string, any>>(obj: T): Partial<T> => {
+  const cleaned: Partial<T> = {};
+  for (const key in obj) {
+    if (obj[key] !== undefined) {
+      cleaned[key] = obj[key];
+    }
+  }
+  return cleaned;
+};
+
 export interface WishlistItem {
   id: string;
   name: string;
@@ -33,6 +44,18 @@ export interface Wishlist {
   createdAt: Timestamp;
   items: WishlistItem[];
 }
+
+// Helper function to clean wishlist items array
+const cleanWishlistItems = (items: WishlistItem[]): WishlistItem[] => {
+  return items.map((item) => {
+    const cleaned = removeUndefined(item);
+    return {
+      id: item.id,
+      name: item.name,
+      ...cleaned,
+    } as WishlistItem;
+  });
+};
 
 export const createWishlist = async (
   name: string,
@@ -123,13 +146,19 @@ export const addItemToWishlist = async (
     }
 
     const wishlistData = wishlistSnap.data() as Wishlist;
+    // Remove undefined values before creating the item
+    const cleanedItem = removeUndefined(item);
     const newItem: WishlistItem = {
       id: Date.now().toString(),
-      ...item,
+      name: item.name,
+      ...cleanedItem,
     };
 
+    const existingItems = wishlistData.items || [];
+    const cleanedExistingItems = cleanWishlistItems(existingItems);
+    
     await updateDoc(wishlistRef, {
-      items: [...(wishlistData.items || []), newItem],
+      items: [...cleanedExistingItems, newItem],
     });
   } catch (error: any) {
     throw new Error(error.message || 'Failed to add item');
@@ -150,11 +179,16 @@ export const updateWishlistItem = async (
     }
 
     const wishlistData = wishlistSnap.data() as Wishlist;
+    // Remove undefined values from updates
+    const cleanedUpdates = removeUndefined(updates);
     const updatedItems = wishlistData.items.map((item) =>
-      item.id === itemId ? { ...item, ...updates } : item
+      item.id === itemId ? { ...item, ...cleanedUpdates } : item
     );
 
-    await updateDoc(wishlistRef, { items: updatedItems });
+    // Clean all items to ensure no undefined values
+    const cleanedItems = cleanWishlistItems(updatedItems);
+
+    await updateDoc(wishlistRef, { items: cleanedItems });
   } catch (error: any) {
     throw new Error(error.message || 'Failed to update item');
   }
@@ -179,6 +213,17 @@ export const deleteWishlistItem = async (
   } catch (error: any) {
     throw new Error(error.message || 'Failed to delete item');
   }
+};
+
+export const markItemAsPurchased = async (
+  wishlistId: string,
+  itemId: string,
+  purchasedBy: string
+): Promise<void> => {
+  await updateWishlistItem(wishlistId, itemId, {
+    purchasedBy,
+    purchasedAt: Timestamp.now(),
+  });
 };
 
 export const subscribeToWishlistsForEvent = (
