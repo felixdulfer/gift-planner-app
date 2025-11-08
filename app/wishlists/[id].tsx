@@ -364,40 +364,47 @@ export default function WishlistDetailScreen() {
   const isEventMember = event?.members?.includes(user?.uid || '') || false;
   const canEdit = isEventMember; // All event members can edit
 
-  // Split items into favorites and non-favorites
-  const favoriteItems = (wishlist.items || []).filter(item => item.isFavorite);
-  const nonFavoriteItems = (wishlist.items || []).filter(item => !item.isFavorite);
+  // Split items into three categories:
+  // 1. Favorite items that are NOT purchased
+  // 2. Purchased items (their own category, including favorited purchased items)
+  // 3. Regular items (non-favorite, non-purchased)
+  const favoriteItems = (wishlist.items || []).filter(
+    item => item.isFavorite && !item.purchasedBy
+  );
+  const purchasedItems = (wishlist.items || []).filter(item => item.purchasedBy);
+  const regularItems = (wishlist.items || []).filter(
+    item => !item.isFavorite && !item.purchasedBy
+  );
   
-  // Combine items with section markers for rendering
-  const allItemsWithSections: (WishlistItem | { type: 'header' | 'divider', id: string, label?: string })[] = [];
-  
-  if (favoriteItems.length > 0) {
-    allItemsWithSections.push({ type: 'header', id: 'favorites-header', label: 'Favorites' });
-    allItemsWithSections.push(...favoriteItems);
-  }
-  
-  if (favoriteItems.length > 0 && nonFavoriteItems.length > 0) {
-    allItemsWithSections.push({ type: 'divider', id: 'divider' });
-  }
-  
-  if (nonFavoriteItems.length > 0) {
-    allItemsWithSections.push(...nonFavoriteItems);
-  }
-  
-  // Filter out section markers for drag operations
-  const itemsForDrag = [...favoriteItems, ...nonFavoriteItems];
+  // Combine all items for drag operations (maintaining order)
+  const itemsForDrag = [
+    ...favoriteItems,
+    ...purchasedItems,
+    ...regularItems,
+  ];
 
   const renderItem = ({ item, drag, isActive, index }: RenderItemParams<WishlistItem> & { index?: number }) => {
     const purchaserData = item.purchasedBy ? userDataMap.get(item.purchasedBy) : null;
     const purchaserName = purchaserData?.displayName || item.purchasedBy || 'Unknown';
     const isExpanded = expandedItemId === item.id;
     
-    // Check if we need to render a divider before this item (first non-favorite)
-    const showDivider = index !== undefined && favoriteItems.length > 0 && index === favoriteItems.length;
+    // Show section headers before the first item of each section
+    const showFavoritesHeader = index === 0 && favoriteItems.length > 0;
+    const showPurchasedHeader = index === favoriteItems.length && purchasedItems.length > 0;
+    const showRegularHeader = index === favoriteItems.length + purchasedItems.length && regularItems.length > 0;
+    
+    // Show dividers between sections
+    const showDividerBeforePurchased = index === favoriteItems.length && 
+      favoriteItems.length > 0 && 
+      purchasedItems.length > 0;
+    const showDividerBeforeRegular = index === favoriteItems.length + purchasedItems.length &&
+      (favoriteItems.length > 0 || purchasedItems.length > 0) &&
+      regularItems.length > 0;
     
     const cardStyle = [
       styles.itemCard,
       item.purchasedBy && styles.itemCardPurchased,
+      item.isFavorite && !item.purchasedBy && styles.itemCardFavorite,
       isActive && styles.itemCardActive,
     ];
 
@@ -522,7 +529,23 @@ export default function WishlistDetailScreen() {
 
     return (
       <>
-        {showDivider && <View style={styles.divider} />}
+        {showFavoritesHeader && (
+          <View style={styles.sectionHeaderContainer}>
+            <Text style={styles.sectionHeader}>Favorites</Text>
+          </View>
+        )}
+        {showPurchasedHeader && (
+            <View style={styles.sectionHeaderContainer}>
+              <Text style={styles.sectionHeader}>Purchased</Text>
+            </View>
+        )}
+        {showRegularHeader && (
+          <>
+            {showDividerBeforeRegular && <View style={styles.divider} />}
+            <View style={styles.sectionHeaderContainer}>
+            </View>
+          </>
+        )}
         {item.purchasedBy ? (
           <LinearGradient
             colors={['#E8F8F2', '#D4F4E6', '#C0F0DA']}
@@ -530,7 +553,20 @@ export default function WishlistDetailScreen() {
             end={{ x: 1, y: 1 }}
             style={cardStyle}
           >
-            {cardContent}
+            <View style={styles.cardContentWrapper}>
+              {cardContent}
+            </View>
+          </LinearGradient>
+        ) : item.isFavorite ? (
+          <LinearGradient
+            colors={['#FFF9E6', '#FFF4CC', '#FFEFB3']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={cardStyle}
+          >
+            <View style={styles.cardContentWrapper}>
+              {cardContent}
+            </View>
           </LinearGradient>
         ) : (
           <View style={cardStyle}>
@@ -628,34 +664,29 @@ export default function WishlistDetailScreen() {
         </View>
       )}
 
-      <DraggableFlatList
-        data={itemsForDrag}
-        renderItem={(params) => {
-          const index = itemsForDrag.findIndex(i => i.id === params.item.id);
-          return renderItem({ ...params, index });
-        }}
-        keyExtractor={(item) => item.id}
-        onDragEnd={handleDragEnd}
-        activationDistance={10}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          favoriteItems.length > 0 ? (
-            <View style={styles.sectionHeaderContainer}>
-              <Text style={styles.sectionHeader}>Favorites</Text>
+      <View style={styles.scrollContainer}>
+        <DraggableFlatList
+          data={itemsForDrag}
+          renderItem={(params) => {
+            const index = itemsForDrag.findIndex(i => i.id === params.item.id);
+            return renderItem({ ...params, index });
+          }}
+          keyExtractor={(item) => item.id}
+          onDragEnd={handleDragEnd}
+          activationDistance={10}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>No items yet</Text>
+              {canEdit && (
+                <Text style={styles.emptySubtext}>
+                  Add items to this wishlist
+                </Text>
+              )}
             </View>
-          ) : null
-        }
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>No items yet</Text>
-            {canEdit && (
-              <Text style={styles.emptySubtext}>
-                Add items to this wishlist
-              </Text>
-            )}
-          </View>
-        }
-      />
+          }
+        />
+      </View>
 
       {showEditDialog && (
         <View style={styles.modal}>
@@ -899,9 +930,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#4CAF50',
   },
+  itemCardFavorite: {
+    borderWidth: 1,
+    borderColor: '#FFD700',
+  },
   itemCardActive: {
     opacity: 0.8,
     transform: [{ scale: 1.02 }],
+  },
+  cardContentWrapper: {
+    backgroundColor: 'transparent',
   },
   itemHeaderRow: {
     flexDirection: 'row',
