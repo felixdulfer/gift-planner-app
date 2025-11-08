@@ -21,6 +21,7 @@ This guide will walk you through setting up Firebase for the Gift Planner App.
 6. Copy the Firebase configuration object
 
 You'll see something like:
+
 ```javascript
 const firebaseConfig = {
   apiKey: "AIza...",
@@ -28,7 +29,7 @@ const firebaseConfig = {
   projectId: "your-project-id",
   storageBucket: "your-project.appspot.com",
   messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef"
+  appId: "1:123456789:web:abcdef",
 };
 ```
 
@@ -36,7 +37,8 @@ const firebaseConfig = {
 
 ### Option A: Using Environment Variables (Recommended)
 
-1. Create a `.env` file in the root of your project:
+1. Create a `.env.local` file in the root of your project:
+
 ```bash
 EXPO_PUBLIC_FIREBASE_API_KEY=your-api-key-here
 EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
@@ -47,12 +49,14 @@ EXPO_PUBLIC_FIREBASE_APP_ID=your-app-id-here
 ```
 
 2. Install dotenv (if not already installed):
+
 ```bash
-npm install dotenv
+bun add dotenv
 ```
 
 3. **Important**: Add `.env` to your `.gitignore` file to keep your credentials secure:
-```
+
+```text
 .env
 .env.local
 ```
@@ -102,40 +106,40 @@ service cloud.firestore {
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     // Helper function to check if user owns the document
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-    
+
     // Users collection - users can read/write their own data
     match /users/{userId} {
       allow read, write: if isOwner(userId);
     }
-    
+
     // Events collection - users can read events they're members of
     match /events/{eventId} {
       allow read: if isAuthenticated() && request.auth.uid in resource.data.members;
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
     }
-    
+
     // Wishlists collection - users can read wishlists for events they're members of
     match /wishlists/{wishlistId} {
-      allow read: if isAuthenticated() && 
+      allow read: if isAuthenticated() &&
         exists(/databases/$(database)/documents/events/$(resource.data.eventId)) &&
         request.auth.uid in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.members;
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
     }
-    
+
     // Assignments collection - users can read assignments for events they're members of
     match /assignments/{assignmentId} {
-      allow read: if isAuthenticated() && 
+      allow read: if isAuthenticated() &&
         exists(/databases/$(database)/documents/events/$(resource.data.eventId)) &&
         request.auth.uid in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.members;
       allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && 
+      allow update, delete: if isAuthenticated() &&
         exists(/databases/$(database)/documents/events/$(resource.data.eventId)) &&
         request.auth.uid == get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.createdBy;
     }
@@ -150,8 +154,9 @@ service cloud.firestore {
 ## Step 7: Test Your Setup
 
 1. Start your Expo app:
+
 ```bash
-npm start
+bun start
 ```
 
 2. Try to:
@@ -164,20 +169,25 @@ If everything works, Firebase is configured correctly!
 ## Troubleshooting
 
 ### "Firebase: Error (auth/configuration-not-found)"
+
 - Make sure all environment variables are set correctly
 - Restart your Expo development server after adding environment variables
 
 ### "Permission denied" errors
+
 - Check your Firestore security rules
 - Make sure you're authenticated before accessing data
 - Verify the user is a member of the event they're trying to access
 
 ### Google Sign-In not working on mobile
+
 - `signInWithPopup` only works on web
 - For iOS/Android, you'll need to install additional packages:
+
   ```bash
-  npm install @react-native-google-signin/google-signin
+  bun add @react-native-google-signin/google-signin
   ```
+
   Then update `lib/auth.ts` to use the native Google Sign-In SDK
 
 ## Next Steps
@@ -185,4 +195,3 @@ If everything works, Firebase is configured correctly!
 - Set up Firebase Storage if you want to add image uploads for wishlist items
 - Configure Cloud Functions for email invitations (optional)
 - Set up push notifications (optional)
-

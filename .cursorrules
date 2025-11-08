@@ -1,0 +1,38 @@
+# Cursor Rules for Gift Planner App
+
+## Package Manager
+
+This project uses **Bun** as the package manager, not npm or yarn.
+
+- Install dependencies: `bun install`
+- Add a package: `bun add <package-name>`
+- Remove a package: `bun remove <package-name>`
+- Run scripts: `bun run <script-name>`
+
+## Tech Stack
+
+- **Framework**: Expo (React Native)
+- **Routing**: Expo Router (file-based routing)
+- **Language**: TypeScript
+- **Backend**: Firebase (Authentication, Firestore)
+- **Package Manager**: Bun
+
+## Project Structure
+
+- `app/` - Expo Router pages and layouts
+- `lib/` - Firebase configuration and utilities
+- `contexts/` - React contexts (AuthContext)
+- `components/` - Reusable UI components
+
+## Code Style
+
+- Use TypeScript for all files
+- Follow React Native best practices
+- Use Expo Router conventions for navigation
+- Firebase operations should be in `lib/firestore/` directory
+
+## Important Notes
+
+- Firebase configuration uses environment variables (EXPO_PUBLIC_*)
+- Auth state persistence is handled manually for React Native (Firebase v12 limitation)
+- Real-time updates use Firestore listeners (onSnapshot)
