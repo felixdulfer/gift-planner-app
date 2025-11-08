@@ -1,23 +1,26 @@
-import { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contexts/AuthContext';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  subscribeToEvent,
-  inviteUserToEvent,
-  deleteEvent,
-  Event,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../../contexts/AuthContext';
+import { getUserData, UserData } from '../../lib/auth';
+import {
+    deleteEvent,
+    Event,
+    inviteUserToEvent,
+    removeMemberFromEvent,
+    subscribeToEvent,
 } from '../../lib/firestore/events';
 
 export default function EventDetailScreen() {
@@ -28,6 +31,7 @@ export default function EventDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
+  const [members, setMembers] = useState<Map<string, UserData>>(new Map());
 
   useEffect(() => {
     if (!id) return;
@@ -35,11 +39,32 @@ export default function EventDetailScreen() {
     setLoading(true);
     const unsubscribe = subscribeToEvent(id, (eventData) => {
       setEvent(eventData);
+      
+      // Load member details when event updates
+      if (eventData?.members) {
+        loadMemberDetails(eventData.members);
+      }
+      
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, [id]);
+
+  const loadMemberDetails = async (memberIds: string[]) => {
+    const memberMap = new Map<string, UserData>();
+    for (const memberId of memberIds) {
+      try {
+        const userData = await getUserData(memberId);
+        if (userData) {
+          memberMap.set(memberId, userData);
+        }
+      } catch (error) {
+        console.error(`Error loading user ${memberId}:`, error);
+      }
+    }
+    setMembers(memberMap);
+  };
 
   const handleInvite = async () => {
     if (!inviteEmail.trim() || !user || !id) return;
@@ -47,10 +72,18 @@ export default function EventDetailScreen() {
     setInviting(true);
     try {
       await inviteUserToEvent(id, inviteEmail.trim(), user.uid);
-      Alert.alert('Success', 'Invitation sent!');
+      if (Platform.OS === 'web') {
+        window.alert('Success: Invitation sent!');
+      } else {
+        Alert.alert('Success', 'Invitation sent!');
+      }
       setInviteEmail('');
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      if (Platform.OS === 'web') {
+        window.alert(`Error: ${error.message}`);
+      } else {
+        Alert.alert('Error', error.message);
+      }
     } finally {
       setInviting(false);
     }
@@ -59,25 +92,78 @@ export default function EventDetailScreen() {
   const handleDelete = async () => {
     if (!id) return;
 
-    Alert.alert(
-      'Delete Event',
-      'Are you sure you want to delete this event?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteEvent(id);
-              router.back();
-            } catch (error: any) {
-              Alert.alert('Error', error.message);
-            }
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        'Are you sure you want to delete this event?'
+      );
+      if (confirmed) {
+        try {
+          await deleteEvent(id);
+          router.back();
+        } catch (error: any) {
+          window.alert(`Error: ${error.message}`);
+        }
+      }
+    } else {
+      Alert.alert(
+        'Delete Event',
+        'Are you sure you want to delete this event?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await deleteEvent(id);
+                router.back();
+              } catch (error: any) {
+                Alert.alert('Error', error.message);
+              }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!id) return;
+
+    const memberData = members.get(memberId);
+    const memberName = memberData?.displayName || memberData?.email || 'this member';
+
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        `Are you sure you want to remove ${memberName} from this event?`
+      );
+      if (confirmed) {
+        try {
+          await removeMemberFromEvent(id, memberId);
+        } catch (error: any) {
+          window.alert(`Error: ${error.message}`);
+        }
+      }
+    } else {
+      Alert.alert(
+        'Remove Member',
+        `Are you sure you want to remove ${memberName} from this event?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await removeMemberFromEvent(id, memberId);
+              } catch (error: any) {
+                Alert.alert('Error', error.message);
+              }
+            },
+          },
+        ]
+      );
+    }
   };
 
   if (loading) {
@@ -124,11 +210,30 @@ export default function EventDetailScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Members ({event.members?.length || 0})</Text>
         <View style={styles.membersList}>
-          {event.members?.map((memberId) => (
-            <View key={memberId} style={styles.memberItem}>
-              <Text style={styles.memberText}>{memberId}</Text>
-            </View>
-          ))}
+          {event.members?.map((memberId) => {
+            const memberData = members.get(memberId);
+            const canRemove = isCreator && memberId !== event.createdBy;
+            return (
+              <View key={memberId} style={styles.memberItem}>
+                <View style={styles.memberInfo}>
+                  <Text style={styles.memberName}>
+                    {memberData?.displayName || 'Loading...'}
+                  </Text>
+                  <Text style={styles.memberEmail}>
+                    {memberData?.email || memberId}
+                  </Text>
+                </View>
+                {canRemove && (
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => handleRemoveMember(memberId)}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#FF3B30" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
         </View>
       </View>
 
@@ -159,21 +264,19 @@ export default function EventDetailScreen() {
         </View>
       )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Pending Invitations</Text>
-        {event.invitations?.filter((inv) => inv.status === 'pending').length === 0 ? (
-          <Text style={styles.emptyText}>No pending invitations</Text>
-        ) : (
-          event.invitations
+      {event.invitations?.filter((inv) => inv.status === 'pending').length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Pending Invitations</Text>
+          {event.invitations
             ?.filter((inv) => inv.status === 'pending')
             .map((inv, index) => (
               <View key={index} style={styles.invitationItem}>
                 <Text style={styles.invitationEmail}>{inv.email}</Text>
                 <Text style={styles.invitationStatus}>{inv.status}</Text>
               </View>
-            ))
-        )}
-      </View>
+            ))}
+        </View>
+      )}
 
       <View style={styles.actions}>
         <TouchableOpacity
@@ -259,13 +362,29 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   memberItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 12,
     backgroundColor: '#f9f9f9',
     borderRadius: 8,
   },
-  memberText: {
-    fontSize: 14,
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#333',
+    marginBottom: 4,
+  },
+  memberEmail: {
+    fontSize: 14,
+    color: '#666',
+  },
+  removeButton: {
+    padding: 4,
+    marginLeft: 8,
   },
   inviteRow: {
     flexDirection: 'row',

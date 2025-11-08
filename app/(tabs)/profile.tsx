@@ -20,11 +20,6 @@ export default function ProfileScreen() {
 
     try {
       await acceptInvitation(event.id, user.uid, user.email!);
-      if (Platform.OS === 'web') {
-        alert('Success! You have joined the event!');
-      } else {
-        Alert.alert('Success', 'You have joined the event!');
-      }
       router.push(`/events/${event.id}`);
     } catch (error: any) {
       if (Platform.OS === 'web') {

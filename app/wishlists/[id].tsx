@@ -1,10 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Platform,
   StyleSheet,
   Text,
@@ -12,18 +11,26 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import DraggableFlatList, {
+  RenderItemParams,
+  ScaleDecorator,
+} from 'react-native-draggable-flatlist';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
+import { getUserData, UserData } from '../../lib/auth';
 import {
   getAssignmentForWishlist,
   updateAssignmentStatus,
 } from '../../lib/firestore/assignments';
+import { Event, subscribeToEvent } from '../../lib/firestore/events';
 import {
   addItemToWishlist,
   deleteWishlist,
   deleteWishlistItem,
   markItemAsPurchased,
+  reorderWishlistItems,
   subscribeToWishlist,
+  unmarkItemAsPurchased,
   Wishlist,
   WishlistItem,
 } from '../../lib/firestore/wishlists';
@@ -33,24 +40,94 @@ export default function WishlistDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const [wishlist, setWishlist] = useState<Wishlist | null>(null);
+  const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddItem, setShowAddItem] = useState(false);
   const [itemName, setItemName] = useState('');
   const [itemDescription, setItemDescription] = useState('');
   const [itemLink, setItemLink] = useState('');
   const [itemPrice, setItemPrice] = useState('');
+  const [userDataMap, setUserDataMap] = useState<Map<string, UserData>>(new Map());
+
+  const loadUserData = useCallback(async (userIds: string[]) => {
+    // Get current map to check what we already have
+    setUserDataMap((currentMap) => {
+      const userIdsToFetch = userIds.filter(userId => !currentMap.has(userId));
+      
+      if (userIdsToFetch.length === 0) {
+        return currentMap; // Already have all user data
+      }
+      
+      // Fetch user data for users we don't have yet
+      Promise.all(
+        userIdsToFetch.map(async (userId) => {
+          try {
+            const userData = await getUserData(userId);
+            return { userId, userData };
+          } catch (error) {
+            console.error(`Error loading user ${userId}:`, error);
+            return null;
+          }
+        })
+      ).then((results) => {
+        setUserDataMap((prevMap) => {
+          const updatedMap = new Map(prevMap);
+          results.forEach((result) => {
+            if (result && result.userData) {
+              updatedMap.set(result.userId, result.userData);
+            }
+          });
+          return updatedMap;
+        });
+      });
+      
+      return currentMap;
+    });
+  }, []);
 
   useEffect(() => {
     if (!id) return;
 
     setLoading(true);
-    const unsubscribe = subscribeToWishlist(id, (wishlistData) => {
+    let unsubscribeEvent: (() => void) | null = null;
+    
+    const unsubscribeWishlist = subscribeToWishlist(id, (wishlistData) => {
       setWishlist(wishlistData);
-      setLoading(false);
+      
+      // Load user data for purchasers
+      if (wishlistData?.items) {
+        const purchaserIds = wishlistData.items
+          .map(item => item.purchasedBy)
+          .filter((id): id is string => !!id);
+        
+        if (purchaserIds.length > 0) {
+          loadUserData(purchaserIds);
+        }
+      }
+      
+      // Fetch event data when wishlist is loaded
+      if (wishlistData?.eventId) {
+        // Clean up previous event subscription if it exists
+        if (unsubscribeEvent) {
+          unsubscribeEvent();
+        }
+        
+        unsubscribeEvent = subscribeToEvent(wishlistData.eventId, (eventData) => {
+          setEvent(eventData);
+          setLoading(false);
+        });
+      } else {
+        setLoading(false);
+      }
     });
 
-    return () => unsubscribe();
-  }, [id]);
+    return () => {
+      unsubscribeWishlist();
+      if (unsubscribeEvent) {
+        unsubscribeEvent();
+      }
+    };
+  }, [id, loadUserData]);
 
   const handleAddItem = async () => {
     if (!itemName.trim() || !id) return;
@@ -75,36 +152,47 @@ export default function WishlistDetailScreen() {
   const handleMarkPurchased = async (itemId: string) => {
     if (!id || !user) return;
 
-    Alert.alert(
-      'Mark as Purchased',
-      'Are you sure you want to mark this item as purchased?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Mark Purchased',
-          onPress: async () => {
-            try {
-              await markItemAsPurchased(id, itemId, user.uid);
-              
-              // Update assignment status if this wishlist has an assignment
-              try {
-                const assignment = await getAssignmentForWishlist(id);
-                if (assignment && assignment.status === 'pending') {
-                  await updateAssignmentStatus(assignment.id, 'purchased');
-                }
-              } catch (assignmentError) {
-                // Assignment update is optional, don't fail the whole operation
-                console.error('Error updating assignment:', assignmentError);
-              }
-              
-              // Wishlist will update automatically via real-time listener
-            } catch (error: any) {
-              Alert.alert('Error', error.message);
-            }
-          },
-        },
-      ]
-    );
+    try {
+      await markItemAsPurchased(id, itemId, user.uid);
+      
+      // Update assignment status if this wishlist has an assignment
+      try {
+        const assignment = await getAssignmentForWishlist(id);
+        if (assignment && assignment.status === 'pending') {
+          await updateAssignmentStatus(assignment.id, 'purchased');
+        }
+      } catch (assignmentError) {
+        // Assignment update is optional, don't fail the whole operation
+        console.error('Error updating assignment:', assignmentError);
+      }
+      
+      // Wishlist will update automatically via real-time listener
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  const handleUnmarkPurchased = async (itemId: string) => {
+    if (!id || !user) return;
+
+    try {
+      await unmarkItemAsPurchased(id, itemId);
+      
+      // Update assignment status back to pending if this wishlist has an assignment
+      try {
+        const assignment = await getAssignmentForWishlist(id);
+        if (assignment && assignment.status === 'purchased') {
+          await updateAssignmentStatus(assignment.id, 'pending');
+        }
+      } catch (assignmentError) {
+        // Assignment update is optional, don't fail the whole operation
+        console.error('Error updating assignment:', assignmentError);
+      }
+      
+      // Wishlist will update automatically via real-time listener
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
   };
 
   const handleDeleteItem = async (itemId: string) => {
@@ -155,6 +243,20 @@ export default function WishlistDetailScreen() {
     );
   };
 
+  const handleDragEnd = async ({ data }: { data: WishlistItem[] }) => {
+    if (!id || !wishlist || !event || !user) return;
+    
+    const isEventMember = event.members?.includes(user.uid) || false;
+    if (!isEventMember) return;
+
+    try {
+      await reorderWishlistItems(id, data);
+      // Wishlist will update automatically via real-time listener
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -173,48 +275,93 @@ export default function WishlistDetailScreen() {
   }
 
   const isCreator = wishlist.createdBy === user?.uid;
+  const isEventMember = event?.members?.includes(user?.uid || '') || false;
+  const canEdit = isEventMember; // All event members can edit
 
-  const renderItem = ({ item }: { item: WishlistItem }) => (
-    <View style={styles.itemCard}>
-      <View style={styles.itemHeader}>
-        <Text style={styles.itemName}>{item.name}</Text>
-        {item.purchasedBy && (
-          <View style={styles.purchasedBadge}>
-            <Text style={styles.purchasedText}>Purchased</Text>
-          </View>
-        )}
-      </View>
-      {item.description && (
-        <Text style={styles.itemDescription}>{item.description}</Text>
-      )}
-      {item.link && (
-        <Text style={styles.itemLink} numberOfLines={1}>
-          {item.link}
-        </Text>
-      )}
-      {item.price && (
-        <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
-      )}
-      {!item.purchasedBy && (
-        <View style={styles.itemActions}>
-          <TouchableOpacity
-            style={styles.purchaseButton}
-            onPress={() => handleMarkPurchased(item.id)}
-          >
-            <Text style={styles.purchaseButtonText}>Mark as Purchased</Text>
-          </TouchableOpacity>
-          {isCreator && (
+  const renderItem = ({ item, drag, isActive }: RenderItemParams<WishlistItem>) => {
+    const purchaserData = item.purchasedBy ? userDataMap.get(item.purchasedBy) : null;
+    const purchaserName = purchaserData?.displayName || item.purchasedBy || 'Unknown';
+    
+    return (
+      <ScaleDecorator>
+        <View
+          style={[
+            styles.itemCard,
+            isActive && styles.itemCardActive,
+          ]}
+        >
+          {canEdit && (
             <TouchableOpacity
-              style={styles.deleteItemButton}
-              onPress={() => handleDeleteItem(item.id)}
+              onLongPress={drag}
+              disabled={isActive}
+              style={styles.dragHandle}
+              activeOpacity={0.6}
             >
-              <Text style={styles.deleteItemButtonText}>Delete</Text>
+              <Ionicons name="reorder-three-outline" size={24} color="#999" />
             </TouchableOpacity>
           )}
+          <View style={styles.itemContent}>
+            <View style={styles.itemHeader}>
+              <Text style={styles.itemName}>{item.name}</Text>
+              {item.purchasedBy && (
+                <View style={styles.purchasedBadge}>
+                  <Text style={styles.purchasedText}>
+                    Purchased by {purchaserName}
+                  </Text>
+                </View>
+              )}
+            </View>
+            {item.description && (
+              <Text style={styles.itemDescription}>{item.description}</Text>
+            )}
+            {item.link && (
+              <Text style={styles.itemLink} numberOfLines={1}>
+                {item.link}
+              </Text>
+            )}
+            {item.price && (
+              <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+            )}
+            {item.purchasedBy ? (
+              <View style={styles.itemActions}>
+                <TouchableOpacity
+                  style={styles.unmarkPurchaseButton}
+                  onPress={() => handleUnmarkPurchased(item.id)}
+                >
+                  <Text style={styles.unmarkPurchaseButtonText}>Unmark as Purchased</Text>
+                </TouchableOpacity>
+                {canEdit && (
+                  <TouchableOpacity
+                    style={styles.deleteItemButton}
+                    onPress={() => handleDeleteItem(item.id)}
+                  >
+                    <Ionicons name="trash" size={20} color="#fff" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <View style={styles.itemActions}>
+                <TouchableOpacity
+                  style={styles.purchaseButton}
+                  onPress={() => handleMarkPurchased(item.id)}
+                >
+                  <Text style={styles.purchaseButtonText}>Mark as Purchased</Text>
+                </TouchableOpacity>
+                {canEdit && (
+                  <TouchableOpacity
+                    style={styles.deleteItemButton}
+                    onPress={() => handleDeleteItem(item.id)}
+                  >
+                    <Ionicons name="trash" size={20} color="#fff" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
         </View>
-      )}
-    </View>
-  );
+      </ScaleDecorator>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -238,7 +385,7 @@ export default function WishlistDetailScreen() {
         )}
       </View>
 
-      {isCreator && (
+      {canEdit && (
         <View style={styles.addSection}>
           {!showAddItem ? (
             <TouchableOpacity
@@ -302,15 +449,17 @@ export default function WishlistDetailScreen() {
         </View>
       )}
 
-      <FlatList
+      <DraggableFlatList
         data={wishlist.items || []}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
+        onDragEnd={handleDragEnd}
+        activationDistance={10}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>No items yet</Text>
-            {isCreator && (
+            {canEdit && (
               <Text style={styles.emptySubtext}>
                 Add items to this wishlist
               </Text>
@@ -427,6 +576,8 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     ...Platform.select({
       web: {
         boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
@@ -440,10 +591,23 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  itemCardActive: {
+    opacity: 0.8,
+    transform: [{ scale: 1.02 }],
+  },
+  dragHandle: {
+    marginRight: 12,
+    paddingTop: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+  },
+  itemContent: {
+    flex: 1,
+  },
   itemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
   itemName: {
@@ -451,12 +615,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     flex: 1,
+    marginRight: 8,
   },
   purchasedBadge: {
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 4,
+    maxWidth: '70%',
   },
   purchasedText: {
     color: '#fff',
@@ -490,21 +656,34 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   purchaseButtonText: {
     color: '#fff',
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  unmarkPurchaseButton: {
+    flex: 1,
+    backgroundColor: '#FF9500',
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unmarkPurchaseButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   deleteItemButton: {
     backgroundColor: '#FF3B30',
     padding: 10,
     borderRadius: 8,
     alignItems: 'center',
-    minWidth: 80,
-  },
-  deleteItemButtonText: {
-    color: '#fff',
-    fontWeight: '600',
+    justifyContent: 'center',
+    width: 44,
+    height: 44,
   },
   empty: {
     padding: 32,

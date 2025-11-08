@@ -125,8 +125,16 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         exists(/databases/$(database)/documents/events/$(resource.data.eventId)) &&
         request.auth.uid in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.members;
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
+      // Allow event members to create wishlists
+      allow create: if isAuthenticated() &&
+        exists(/databases/$(database)/documents/events/$(request.resource.data.eventId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.members;
+      // Allow event members to update wishlists (add/edit/delete items)
+      allow update: if isAuthenticated() &&
+        exists(/databases/$(database)/documents/events/$(resource.data.eventId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.members;
+      // Only creator can delete the entire wishlist
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
     }
 
     // Assignments collection - users can read assignments for events they're members of

@@ -13,6 +13,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import { getUserData } from "../auth";
 import { db } from "../firebase";
 
 export interface Event {
@@ -127,14 +128,41 @@ export const inviteUserToEvent = async (
     }
 
     const eventData = eventSnap.data() as Event;
-    const existingInvitation = eventData.invitations?.find(
+    
+    // Check if user is already a member
+    // We need to check by email, so we'll need to look up the user
+    // For now, we'll check invitations and allow re-inviting if user is not a member
+    const existingInvitationIndex = eventData.invitations?.findIndex(
       (inv) => inv.email === email
     );
 
-    if (existingInvitation) {
-      throw new Error("User already invited");
+    // If there's an existing invitation, check if user is still a member
+    // If user is not a member, we can update the invitation to pending
+    if (existingInvitationIndex !== undefined && existingInvitationIndex !== -1) {
+      const existingInvitation = eventData.invitations![existingInvitationIndex];
+      
+      // If invitation is pending, user is already invited
+      if (existingInvitation.status === "pending") {
+        throw new Error("User already invited");
+      }
+      
+      // If invitation was accepted but user is no longer a member, allow re-inviting
+      // Update the existing invitation to pending
+      const updatedInvitations = [...(eventData.invitations || [])];
+      updatedInvitations[existingInvitationIndex] = {
+        email,
+        status: "pending" as const,
+        invitedBy,
+        invitedAt: Timestamp.now(),
+      };
+      
+      await updateDoc(eventRef, {
+        invitations: updatedInvitations,
+      });
+      return;
     }
 
+    // No existing invitation, create new one
     const newInvitation = {
       email,
       status: "pending" as const,
@@ -363,5 +391,58 @@ export const rejectInvitation = async (
     });
   } catch (error: any) {
     throw new Error(error.message || "Failed to reject invitation");
+  }
+};
+
+export const removeMemberFromEvent = async (
+  eventId: string,
+  memberId: string
+): Promise<void> => {
+  try {
+    const eventRef = doc(db, "events", eventId);
+    const eventSnap = await getDoc(eventRef);
+
+    if (!eventSnap.exists()) {
+      throw new Error("Event not found");
+    }
+
+    const eventData = eventSnap.data() as Event;
+
+    // Prevent removing the creator
+    if (eventData.createdBy === memberId) {
+      throw new Error("Cannot remove the event creator");
+    }
+
+    // Check if member exists
+    if (!eventData.members?.includes(memberId)) {
+      throw new Error("User is not a member of this event");
+    }
+
+    // Remove member from members array
+    const updatedMembers = eventData.members.filter((id) => id !== memberId);
+
+    // Also clean up accepted invitations for this user
+    // Get user's email to find their invitation
+    let updatedInvitations = eventData.invitations || [];
+    try {
+      const userData = await getUserData(memberId);
+      if (userData?.email) {
+        // Find and remove accepted invitations for this email
+        updatedInvitations = updatedInvitations.filter(
+          (inv) => !(inv.email === userData.email && inv.status === "accepted")
+        );
+      }
+    } catch (error) {
+      // If we can't get user data, continue without cleaning up invitations
+      // The inviteUserToEvent function will handle re-inviting anyway
+      console.warn("Could not fetch user data to clean up invitations:", error);
+    }
+
+    await updateDoc(eventRef, {
+      members: updatedMembers,
+      invitations: updatedInvitations,
+    });
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to remove member");
   }
 };

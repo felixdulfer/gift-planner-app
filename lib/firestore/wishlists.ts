@@ -226,6 +226,58 @@ export const markItemAsPurchased = async (
   });
 };
 
+export const unmarkItemAsPurchased = async (
+  wishlistId: string,
+  itemId: string
+): Promise<void> => {
+  try {
+    const wishlistRef = doc(db, 'wishlists', wishlistId);
+    const wishlistSnap = await getDoc(wishlistRef);
+
+    if (!wishlistSnap.exists()) {
+      throw new Error('Wishlist not found');
+    }
+
+    const wishlistData = wishlistSnap.data() as Wishlist;
+    const updatedItems = wishlistData.items.map((item) => {
+      if (item.id === itemId) {
+        // Create a new item object without purchasedBy and purchasedAt
+        const { purchasedBy, purchasedAt, ...rest } = item;
+        return rest;
+      }
+      return item;
+    });
+
+    // Clean all items to ensure no undefined values
+    const cleanedItems = cleanWishlistItems(updatedItems);
+
+    await updateDoc(wishlistRef, { items: cleanedItems });
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to unmark item as purchased');
+  }
+};
+
+export const reorderWishlistItems = async (
+  wishlistId: string,
+  reorderedItems: WishlistItem[]
+): Promise<void> => {
+  try {
+    const wishlistRef = doc(db, 'wishlists', wishlistId);
+    const wishlistSnap = await getDoc(wishlistRef);
+
+    if (!wishlistSnap.exists()) {
+      throw new Error('Wishlist not found');
+    }
+
+    // Clean all items to ensure no undefined values
+    const cleanedItems = cleanWishlistItems(reorderedItems);
+
+    await updateDoc(wishlistRef, { items: cleanedItems });
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to reorder items');
+  }
+};
+
 export const subscribeToWishlistsForEvent = (
   eventId: string,
   callback: (wishlists: Wishlist[]) => void
