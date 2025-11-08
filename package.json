@@ -8,6 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "emulators": "firebase emulators:start",
+    "emulators:exec": "firebase emulators:exec",
     "lint": "expo lint",
     "lint:md": "markdownlint-cli2 \"*.md\" \".cursorrules\"",
     "lint:md:fix": "markdownlint-cli2 \"*.md\" \".cursorrules\" --fix"

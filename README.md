@@ -53,6 +53,54 @@ This project uses **Bun** as the package manager. All commands should use `bun` 
 - Add a package: `bun add <package-name>`
 - Run scripts: `bun run <script-name>`
 
+### Firebase Emulators
+
+This project supports using Firebase emulators for local development, which allows you to develop and test without connecting to a live Firebase project.
+
+#### Using Firebase Emulators
+
+1. **Enable emulators** by setting the environment variable:
+
+   ```bash
+   echo 'EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true' > .env.local
+   ```
+
+2. **Start the Firebase emulators**:
+
+   ```bash
+   bun run emulators
+   ```
+
+   This will start:
+   - Auth emulator on port `9099`
+   - Firestore emulator on port `8080`
+   - Emulator UI on port `4000` (visit http://localhost:4000)
+
+3. **Start your app** in another terminal:
+
+   ```bash
+   bun run ios    # or android, web
+   ```
+
+   The app will automatically connect to the local emulators.
+
+#### Running Commands with Emulators
+
+Use `emulators:exec` to run commands (like tests) with emulators, which will automatically start and stop them:
+
+```bash
+bun run emulators:exec "bun test"
+```
+
+#### Disabling Emulators
+
+To use a real Firebase project instead:
+
+1. Remove or set `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=false` in `.env.local`
+2. Configure your Firebase credentials in `.env.local` (see [FIREBASE_SETUP.md](./FIREBASE_SETUP.md))
+
+**Note:** When using worktrees, emulators are automatically configured. Just start them with `bun run emulators` when needed.
+
 ## Learn more
 
 To learn more about developing your project with Expo, look at the following resources:

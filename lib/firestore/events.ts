@@ -152,20 +152,33 @@ export const inviteUserToEvent = async (
 
 export const subscribeToEventsForUser = (
   userId: string,
-  callback: (events: Event[]) => void
+  callback: (events: Event[]) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe => {
   const q = query(
     collection(db, 'events'),
     where('members', 'array-contains', userId)
   );
 
-  return onSnapshot(q, (querySnapshot) => {
-    const events = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Event[];
-    callback(events);
-  });
+  return onSnapshot(
+    q,
+    (querySnapshot) => {
+      const events = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Event[];
+      callback(events);
+    },
+    (error) => {
+      console.error('Error subscribing to events:', error);
+      if (onError) {
+        onError(error as Error);
+      } else {
+        // If no error handler provided, call callback with empty array
+        callback([]);
+      }
+    }
+  );
 };
 
 export const subscribeToEvent = (

@@ -9,15 +9,30 @@ export default function EventsScreen() {
   const { user } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
-    const unsubscribe = subscribeToEventsForUser(user.uid, (updatedEvents) => {
-      setEvents(updatedEvents);
-      setLoading(false);
-    });
+    setError(null);
+    const unsubscribe = subscribeToEventsForUser(
+      user.uid,
+      (updatedEvents) => {
+        setEvents(updatedEvents);
+        setLoading(false);
+        setError(null);
+      },
+      (err) => {
+        console.error('Error loading events:', err);
+        setError(err.message || 'Failed to load events');
+        setEvents([]);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [user]);
@@ -54,6 +69,13 @@ export default function EventsScreen() {
       {loading ? (
         <View style={styles.center}>
           <Text>Loading events...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Text style={styles.errorText}>Error: {error}</Text>
+          <Text style={styles.emptySubtext}>
+            Please check your connection and try again.
+          </Text>
         </View>
       ) : events.length === 0 ? (
         <View style={styles.center}>
@@ -145,6 +167,12 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     color: '#999',
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#d32f2f',
+    marginBottom: 8,
+    fontWeight: '600',
   },
 });
 
