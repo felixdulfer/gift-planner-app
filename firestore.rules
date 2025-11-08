@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users collection - users can read/write their own data
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Events collection - users can read events they're members of
+    match /events/{eventId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.members;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
+    }
+
+    // Wishlists collection - users can read wishlists for events they're members of
+    match /wishlists/{wishlistId} {
+      allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.members;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
+    }
+
+    // Assignments collection - users can read assignments for events they're members of
+    match /assignments/{assignmentId} {
+      allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.members;
+      allow create, update, delete: if isAuthenticated();
+    }
+  }
+}
+
