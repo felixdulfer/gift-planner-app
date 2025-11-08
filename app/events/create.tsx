@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ export default function CreateEventScreen() {
   const [name, setName] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const eventDateInputRef = useRef<TextInput>(null);
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -52,14 +53,20 @@ export default function CreateEventScreen() {
           placeholder="e.g., Christmas 2025"
           value={name}
           onChangeText={setName}
+          returnKeyType="next"
+          onSubmitEditing={() => eventDateInputRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
         <Text style={styles.label}>Event Date (Optional)</Text>
         <TextInput
+          ref={eventDateInputRef}
           style={styles.input}
           placeholder="YYYY-MM-DD"
           value={eventDate}
           onChangeText={setEventDate}
+          returnKeyType="done"
+          onSubmitEditing={handleCreate}
         />
 
         <TouchableOpacity
