@@ -1,0 +1,17 @@
+version: '3'
+
+vars:
+  PACKAGE_MANAGER: bun
+
+tasks:
+  # Firebase Emulators
+  emulators:
+    desc: Start Firebase emulators
+    cmds:
+      - '{{.PACKAGE_MANAGER}} run emulators'
+
+  emulators:exec:
+    desc: 'Run command with Firebase emulators (usage: task emulators:exec -- <command>)'
+    cmds:
+      - '{{.PACKAGE_MANAGER}} run emulators:exec "{{.CLI_ARGS}}"'
+

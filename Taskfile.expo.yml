@@ -1,0 +1,35 @@
+version: '3'
+
+vars:
+  PACKAGE_MANAGER: bun
+
+tasks:
+  # Development
+  start:
+    desc: Start Expo development server
+    cmds:
+      - '{{.PACKAGE_MANAGER}} start'
+
+  ios:
+    desc: Start Expo for iOS
+    cmds:
+      - '{{.PACKAGE_MANAGER}} run ios'
+
+  android:
+    desc: Start Expo for Android
+    cmds:
+      - '{{.PACKAGE_MANAGER}} run android'
+
+  web:
+    desc: Start Expo for web
+    cmds:
+      - '{{.PACKAGE_MANAGER}} run web'
+
+  kill:
+    desc: Kill Expo development server processes
+    cmds:
+      - pkill -f 'expo start' || true
+      - pkill -f 'expo-cli' || true
+      - pkill -f 'metro' || true
+      - lsof -ti:8081 | xargs kill -9 2>/dev/null || true
+
