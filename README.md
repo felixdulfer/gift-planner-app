@@ -45,14 +45,6 @@ You can start developing by editing the files inside the **app** directory. This
 - Purchase tracking
 - Real-time updates with Firestore
 
-## Development
-
-This project uses **Bun** as the package manager. All commands should use `bun` instead of `npm`:
-
-- Install dependencies: `bun install`
-- Add a package: `bun add <package-name>`
-- Run scripts: `bun run <script-name>`
-
 ### Firebase Emulators
 
 This project supports using Firebase emulators for local development, which allows you to develop and test without connecting to a live Firebase project.
@@ -72,9 +64,10 @@ This project supports using Firebase emulators for local development, which allo
    ```
 
    This will start:
+
    - Auth emulator on port `9099`
    - Firestore emulator on port `8080`
-   - Emulator UI on port `4000` (visit http://localhost:4000)
+   - Emulator UI on port `4000` (visit <http://localhost:4000>)
 
 3. **Start your app** in another terminal:
 
