@@ -1,6 +1,8 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { getUserData, UserData } from '../../../lib/auth';
 import {
@@ -24,6 +26,7 @@ interface AssignmentWithDetails extends Assignment {
 }
 
 export default function EventAssignmentsScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([]);
@@ -183,9 +186,17 @@ export default function EventAssignmentsScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Assignments</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#007AFF" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Assignments</Text>
+        </View>
         {isCreator && (
           <TouchableOpacity
             style={styles.addButton}
@@ -301,7 +312,7 @@ export default function EventAssignmentsScreen() {
           contentContainerStyle={styles.list}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -318,6 +329,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 4,
   },
   title: {
     fontSize: 24,

@@ -11,6 +11,8 @@ import {
   FlatList,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   subscribeToWishlist,
@@ -215,9 +217,17 @@ export default function WishlistDetailScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.wishlistName}>{wishlist.name}</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#007AFF" />
+          </TouchableOpacity>
+          <Text style={styles.wishlistName}>{wishlist.name}</Text>
+        </View>
         {isCreator && (
           <TouchableOpacity
             style={styles.deleteButton}
@@ -308,7 +318,7 @@ export default function WishlistDetailScreen() {
           </View>
         }
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -324,12 +334,21 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    padding: 20,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 4,
   },
   wishlistName: {
     fontSize: 28,

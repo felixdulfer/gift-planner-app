@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { subscribeToWishlistsForEvent, Wishlist } from '../../../lib/firestore/wishlists';
 
 export default function EventWishlistsScreen() {
@@ -37,9 +39,17 @@ export default function EventWishlistsScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Wishlists</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#007AFF" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Wishlists</Text>
+        </View>
         <TouchableOpacity
           style={styles.addButton}
           onPress={() => router.push(`/wishlists/create?eventId=${id}`)}
@@ -67,7 +77,7 @@ export default function EventWishlistsScreen() {
           contentContainerStyle={styles.list}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -84,6 +94,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 4,
   },
   title: {
     fontSize: 24,

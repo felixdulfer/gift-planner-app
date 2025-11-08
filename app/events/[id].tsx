@@ -10,6 +10,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   subscribeToEvent,
@@ -98,15 +100,26 @@ export default function EventDetailScreen() {
   const isCreator = event.createdBy === user?.uid;
 
   return (
-    <ScrollView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.eventName}>{event.name}</Text>
-        {event.eventDate && (
-          <Text style={styles.eventDate}>
-            {new Date(event.eventDate.seconds * 1000).toLocaleDateString()}
-          </Text>
-        )}
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#007AFF" />
+          </TouchableOpacity>
+          <View style={styles.headerText}>
+            <Text style={styles.eventName}>{event.name}</Text>
+            {event.eventDate && (
+              <Text style={styles.eventDate}>
+                {new Date(event.eventDate.seconds * 1000).toLocaleDateString()}
+              </Text>
+            )}
+          </View>
+        </View>
       </View>
+      <ScrollView>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Members ({event.members?.length || 0})</Text>
@@ -186,7 +199,8 @@ export default function EventDetailScreen() {
           </TouchableOpacity>
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -202,9 +216,20 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    padding: 20,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 4,
+  },
+  headerText: {
+    flex: 1,
   },
   eventName: {
     fontSize: 28,
