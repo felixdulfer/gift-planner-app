@@ -139,7 +139,7 @@ export const inviteUserToEvent = async (
       email,
       status: "pending" as const,
       invitedBy,
-      invitedAt: serverTimestamp() as Timestamp,
+      invitedAt: Timestamp.now(),
     };
 
     await updateDoc(eventRef, {
@@ -194,4 +194,174 @@ export const subscribeToEvent = (
       callback(null);
     }
   });
+};
+
+export interface EventWithInvitation extends Event {
+  invitationIndex: number;
+}
+
+export const getEventsWithPendingInvitations = async (
+  email: string
+): Promise<EventWithInvitation[]> => {
+  try {
+    // Get all events (we'll filter client-side since Firestore doesn't support
+    // querying nested array fields directly)
+    const querySnapshot = await getDocs(collection(db, "events"));
+    
+    const eventsWithInvitations: EventWithInvitation[] = [];
+    
+    querySnapshot.docs.forEach((doc) => {
+      const eventData = { id: doc.id, ...doc.data() } as Event;
+      
+      if (eventData.invitations) {
+        const invitationIndex = eventData.invitations.findIndex(
+          (inv) => inv.email === email && inv.status === "pending"
+        );
+        
+        if (invitationIndex !== -1) {
+          eventsWithInvitations.push({
+            ...eventData,
+            invitationIndex,
+          });
+        }
+      }
+    });
+    
+    return eventsWithInvitations;
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to get events with invitations");
+  }
+};
+
+export const subscribeToEventsWithPendingInvitations = (
+  email: string,
+  callback: (events: EventWithInvitation[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe => {
+  // Subscribe to all events and filter client-side
+  return onSnapshot(
+    collection(db, "events"),
+    (querySnapshot) => {
+      const eventsWithInvitations: EventWithInvitation[] = [];
+      
+      querySnapshot.docs.forEach((doc) => {
+        const eventData = { id: doc.id, ...doc.data() } as Event;
+        
+        if (eventData.invitations) {
+          const invitationIndex = eventData.invitations.findIndex(
+            (inv) => inv.email === email && inv.status === "pending"
+          );
+          
+          if (invitationIndex !== -1) {
+            eventsWithInvitations.push({
+              ...eventData,
+              invitationIndex,
+            });
+          }
+        }
+      });
+      
+      callback(eventsWithInvitations);
+    },
+    (error) => {
+      console.error("Error subscribing to events with invitations:", error);
+      if (onError) {
+        onError(error as Error);
+      } else {
+        callback([]);
+      }
+    }
+  );
+};
+
+export const acceptInvitation = async (
+  eventId: string,
+  userId: string,
+  email: string
+): Promise<void> => {
+  try {
+    const eventRef = doc(db, "events", eventId);
+    const eventSnap = await getDoc(eventRef);
+
+    if (!eventSnap.exists()) {
+      throw new Error("Event not found");
+    }
+
+    const eventData = eventSnap.data() as Event;
+    
+    // Find the invitation
+    const invitationIndex = eventData.invitations?.findIndex(
+      (inv) => inv.email === email && inv.status === "pending"
+    );
+
+    if (invitationIndex === undefined || invitationIndex === -1) {
+      throw new Error("Invitation not found or already processed");
+    }
+
+    // Check if user is already a member
+    if (eventData.members?.includes(userId)) {
+      throw new Error("User is already a member of this event");
+    }
+
+    // Update invitation status and add user to members
+    const updatedInvitations = [...(eventData.invitations || [])];
+    updatedInvitations[invitationIndex] = {
+      ...updatedInvitations[invitationIndex],
+      status: "accepted" as const,
+    };
+
+    const updatedMembers = [...(eventData.members || []), userId];
+
+    console.log("Accepting invitation:", { eventId, userId, email });
+    await updateDoc(eventRef, {
+      invitations: updatedInvitations,
+      members: updatedMembers,
+    });
+    console.log("Invitation accepted successfully");
+  } catch (error: any) {
+    console.error("Error accepting invitation:", error);
+    // Provide more specific error messages
+    if (error.code === "permission-denied") {
+      throw new Error("Permission denied. Please check Firestore security rules.");
+    }
+    throw new Error(error.message || "Failed to accept invitation");
+  }
+};
+
+export const rejectInvitation = async (
+  eventId: string,
+  email: string
+): Promise<void> => {
+  try {
+    const eventRef = doc(db, "events", eventId);
+    const eventSnap = await getDoc(eventRef);
+
+    if (!eventSnap.exists()) {
+      throw new Error("Event not found");
+    }
+
+    const eventData = eventSnap.data() as Event;
+    
+    // Find the invitation
+    const invitationIndex = eventData.invitations?.findIndex(
+      (inv) => inv.email === email && inv.status === "pending"
+    );
+
+    if (invitationIndex === undefined || invitationIndex === -1) {
+      throw new Error("Invitation not found or already processed");
+    }
+
+    // Update invitation status
+    const updatedInvitations = [...(eventData.invitations || [])];
+    updatedInvitations[invitationIndex] = {
+      ...updatedInvitations[invitationIndex],
+      status: "rejected" as const,
+    };
+
+    await updateDoc(eventRef, {
+      invitations: updatedInvitations,
+    });
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to reject invitation");
+  }
 };

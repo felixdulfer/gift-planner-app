@@ -2,6 +2,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { InvitationsProvider } from '../contexts/InvitationsContext';
 
 function RootLayoutNav() {
   const { user, loading } = useAuth();
@@ -33,7 +34,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <RootLayoutNav />
+        <InvitationsProvider>
+          <RootLayoutNav />
+        </InvitationsProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

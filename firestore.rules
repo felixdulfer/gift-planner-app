@@ -16,11 +16,24 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // Events collection - users can read events they're members of
+    // Events collection - users can read events they're members of or have pending invitations
     match /events/{eventId} {
-      allow read: if isAuthenticated() && request.auth.uid in resource.data.members;
+      // Helper function to check if user is being added to members (accepting invitation)
+      function isAddingSelfToMembers() {
+        let wasMember = exists(resource.data.members) && request.auth.uid in resource.data.members;
+        let willBeMember = request.auth.uid in request.resource.data.members;
+        return isAuthenticated() && willBeMember && !wasMember;
+      }
+      
+      // Allow read if user is authenticated (membership and invitations filtered client-side)
+      // This allows users to see events they have pending invitations for
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
+      // Allow update if user is creator OR if user is accepting invitation (adding themselves to members)
+      allow update: if isAuthenticated() && 
+                       (request.auth.uid == resource.data.createdBy || 
+                        isAddingSelfToMembers());
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
     }
 
     // Wishlists collection - users can read wishlists for events they're members of

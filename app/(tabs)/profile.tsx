@@ -1,11 +1,77 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useInvitations } from '../../contexts/InvitationsContext';
 import { logOut } from '../../lib/auth';
+import {
+  EventWithInvitation,
+  acceptInvitation,
+  rejectInvitation,
+} from '../../lib/firestore/events';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, userData } = useAuth();
+  const { pendingInvitations } = useInvitations();
+
+  const handleAcceptInvitation = async (event: EventWithInvitation) => {
+    if (!user?.uid || !user?.email) return;
+
+    try {
+      await acceptInvitation(event.id, user.uid, user.email!);
+      if (Platform.OS === 'web') {
+        alert('Success! You have joined the event!');
+      } else {
+        Alert.alert('Success', 'You have joined the event!');
+      }
+      router.push(`/events/${event.id}`);
+    } catch (error: any) {
+      if (Platform.OS === 'web') {
+        alert(`Error: ${error.message}`);
+      } else {
+        Alert.alert('Error', error.message);
+      }
+    }
+  };
+
+  const handleRejectInvitation = async (event: EventWithInvitation) => {
+    if (!user?.email) return;
+
+    const confirmMessage = `Do you want to reject the invitation to "${event.name}"?`;
+    
+    // Use window.confirm on web, Alert.alert on native
+    if (Platform.OS === 'web') {
+      if (window.confirm(confirmMessage)) {
+        try {
+          await rejectInvitation(event.id, user.email!);
+          alert('Success! Invitation rejected.');
+        } catch (error: any) {
+          alert(`Error: ${error.message}`);
+        }
+      }
+    } else {
+      Alert.alert(
+        'Reject Invitation',
+        confirmMessage,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Reject',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await rejectInvitation(event.id, user.email!);
+                Alert.alert('Success', 'Invitation rejected');
+              } catch (error: any) {
+                Alert.alert('Error', error.message);
+              }
+            },
+          },
+        ]
+      );
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -17,7 +83,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
@@ -30,10 +96,60 @@ export default function ProfileScreen() {
         <Text style={styles.email}>{user?.email}</Text>
       </View>
 
+      {pendingInvitations.length > 0 && (
+        <View style={styles.invitationsCard}>
+          <View style={styles.invitationsHeader}>
+            <View style={styles.invitationsTitleContainer}>
+              <Ionicons name="mail-unread" size={24} color="#FF3B30" />
+              <Text style={styles.invitationsTitle}>
+                Pending Invitations ({pendingInvitations.length})
+              </Text>
+            </View>
+            <View style={styles.badgeContainer}>
+              <Text style={styles.badgeText}>{pendingInvitations.length}</Text>
+            </View>
+          </View>
+          {pendingInvitations.map((event) => (
+            <View key={event.id} style={styles.invitationItem}>
+              <View style={styles.invitationIconContainer}>
+                <Ionicons name="calendar" size={32} color="#007AFF" />
+              </View>
+              <View style={styles.invitationInfo}>
+                <Text style={styles.invitationEventName}>{event.name}</Text>
+                {event.eventDate && (
+                  <View style={styles.invitationDateRow}>
+                    <Ionicons name="time-outline" size={14} color="#666" />
+                    <Text style={styles.invitationEventDate}>
+                      {new Date(event.eventDate.seconds * 1000).toLocaleDateString()}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.invitationActions}>
+                <TouchableOpacity
+                  style={styles.acceptButton}
+                  onPress={() => handleAcceptInvitation(event)}
+                >
+                  <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                  <Text style={styles.acceptButtonText}>Accept</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.rejectButton}
+                  onPress={() => handleRejectInvitation(event)}
+                >
+                  <Ionicons name="close-circle" size={18} color="#666" />
+                  <Text style={styles.rejectButtonText}>Reject</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutButtonText}>Sign Out</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -86,11 +202,135 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  invitationsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#FF3B30',
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 8px rgba(255, 59, 48, 0.2)',
+      },
+      default: {
+        shadowColor: '#FF3B30',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
+      },
+    }),
+  },
+  invitationsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#FFE5E5',
+  },
+  invitationsTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  invitationsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FF3B30',
+  },
+  badgeContainer: {
+    backgroundColor: '#FF3B30',
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  invitationItem: {
+    flexDirection: 'row',
+    padding: 16,
+    backgroundColor: '#FFF5F5',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FFE5E5',
+    alignItems: 'center',
+  },
+  invitationIconContainer: {
+    marginRight: 12,
+  },
+  invitationInfo: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  invitationEventName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 6,
+  },
+  invitationDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  invitationEventDate: {
+    fontSize: 14,
+    color: '#666',
+  },
+  invitationActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginLeft: 8,
+  },
+  acceptButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 100,
+    justifyContent: 'center',
+  },
+  acceptButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  rejectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 100,
+    justifyContent: 'center',
+  },
+  rejectButtonText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   logoutButton: {
     backgroundColor: '#FF3B30',
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
+    marginBottom: 16,
   },
   logoutButtonText: {
     color: '#fff',
